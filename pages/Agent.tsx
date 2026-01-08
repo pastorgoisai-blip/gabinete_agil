@@ -20,7 +20,12 @@ import {
   Mail,
   Trash2,
   Send,
-  User
+  User,
+  Sparkles,
+  Search,
+  FileText,
+  Users,
+  Paperclip
 } from 'lucide-react';
 import Modal from '../components/Modal';
 
@@ -31,10 +36,7 @@ const Agent: React.FC = () => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  // Form States (Simulated)
-  const [ruleForm, setRuleForm] = useState({ keywords: '', response: '' });
-  
-  // Chat Input State
+  // Chat Input State (External Chat Monitor)
   const [chatMessage, setChatMessage] = useState('');
 
   const openModal = (modalName: string, item: any = null) => {
@@ -55,9 +57,7 @@ const Agent: React.FC = () => {
 
   const handleSendMessage = () => {
     if (!chatMessage.trim()) return;
-    // Simulate sending message
     setChatMessage('');
-    // In a real app, you would append to the message list here
   };
 
   // Mock Data
@@ -73,13 +73,13 @@ const Agent: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 dark:border-slate-700 pb-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Configuração do Agente 24h</h1>
           <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
-            Gerencie as respostas automáticas, monitore conversas em tempo real e analise o desempenho do assistente virtual.
+            Gerencie as respostas automáticas para a população e monitore atendimentos em tempo real.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -157,7 +157,7 @@ const Agent: React.FC = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
         {/* Left Column (Config) */}
-        <div className="xl:col-span-2 space-y-6">
+        <div className="xl:col-span-2 space-y-6 order-2 xl:order-1">
           
           {/* Status & Integrations */}
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
@@ -303,10 +303,10 @@ const Agent: React.FC = () => {
         </div>
 
         {/* Right Column (Monitoring) */}
-        <div className="xl:col-span-1 space-y-6">
+        <div className="xl:col-span-1 space-y-6 order-1 xl:order-2">
           
           {/* Live Conversations */}
-          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl flex flex-col h-[500px] shadow-sm">
+          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl flex flex-col h-[450px] shadow-sm">
             <div className="p-5 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <span className="relative flex h-3 w-3">
@@ -718,10 +718,5 @@ const Agent: React.FC = () => {
     </div>
   );
 };
-
-// Helper component for paperclip icon since it wasn't imported
-const Paperclip = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-);
 
 export default Agent;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   FileText, 
   Plus, 
@@ -11,16 +11,20 @@ import {
   File, 
   CheckCircle, 
   Clock, 
-  AlertTriangle,
-  Calendar,
-  Hash,
-  Briefcase,
-  PenTool,
-  ShieldCheck,
-  Lock,
-  Loader2
+  AlertTriangle, 
+  Calendar, 
+  Hash, 
+  Briefcase, 
+  PenTool, 
+  ShieldCheck, 
+  Lock, 
+  Loader2, 
+  UploadCloud,
+  FileSpreadsheet
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 // Tipo definido para garantir consistência
 interface Document {
@@ -34,6 +38,7 @@ interface Document {
   signedBy?: string;
   signedAt?: string;
   hash?: string;
+  originalUrl?: string; // Para documentos migrados
 }
 
 // Modelos pré-definidos
@@ -65,6 +70,9 @@ const Legislative: React.FC = () => {
   // Estados de Assinatura
   const [signingStep, setSigningStep] = useState<'input' | 'processing' | 'success'>('input');
   const [signaturePass, setSignaturePass] = useState('');
+
+  // Ref para input de arquivo
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estado para controle de Edição/Seleção
   const [isEditing, setIsEditing] = useState(false);
@@ -135,6 +143,119 @@ const Legislative: React.FC = () => {
     setSigningStep('input');
     setSignaturePass('');
     setIsSignModalOpen(true);
+  };
+
+  // --- Import Logic ---
+  const handleImportClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  // --- Export Logic ---
+  const filteredDocs = documents.filter(doc => 
+    doc.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.number.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleExportData = () => {
+    const exportData = filteredDocs.map(d => ({
+      "ID": d.id,
+      "Tipo": d.type,
+      "Número": d.number,
+      "Data": d.date,
+      "Assunto": d.subject,
+      "Status": d.status,
+      "Assinado Por": d.signedBy || '',
+      "Data Assinatura": d.signedAt || '',
+      "Link Original": d.originalUrl || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Documentos Filtrados");
+    XLSX.writeFile(wb, `legislativo_export_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
+  const processImportData = (data: any[]) => {
+    return data.map((item: any) => {
+      const id = item.ID || item.id || Date.now() + Math.random();
+      const type = item['Tipo de Matéria Legislativa/Descrição'] || item.tipo__descricao || item.Tipo || 'Outros';
+      const number = item['Número'] || item.numero || item.Numero || 'SN';
+      const year = item['Ano'] || item.ano || new Date().getFullYear();
+      const subject = item['Ementa'] || item.ementa || 'Sem assunto';
+      const originalUrl = item['Texto Original'] || item.texto_original || '';
+
+      return {
+        id: typeof id === 'number' ? id : parseInt(id) || Date.now(),
+        type,
+        number: `${number}/${year}`,
+        date: new Date().toISOString().split('T')[0],
+        subject,
+        status: 'Assinado', // Default for imported legacy docs
+        originalUrl
+      } as Document;
+    });
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+
+    if (fileExt === 'json') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          const data = JSON.parse(content);
+          if (data.results && Array.isArray(data.results)) {
+            const newDocs = processImportData(data.results);
+            setDocuments(prev => [...newDocs, ...prev]);
+            alert(`${newDocs.length} documentos importados via JSON!`);
+          } else {
+             alert('Formato JSON inválido.');
+          }
+        } catch (error) {
+          alert('Erro ao ler JSON.');
+        }
+      };
+      reader.readAsText(file);
+    } else if (fileExt === 'csv') {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.data && results.data.length > 0) {
+            const newDocs = processImportData(results.data);
+            setDocuments(prev => [...newDocs, ...prev]);
+            alert(`${newDocs.length} documentos importados via CSV!`);
+          }
+        },
+        error: () => alert('Erro ao ler CSV.')
+      });
+    } else if (fileExt === 'xlsx' || fileExt === 'xls') {
+       const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet);
+        
+        if (jsonData && jsonData.length > 0) {
+          const newDocs = processImportData(jsonData);
+          setDocuments(prev => [...newDocs, ...prev]);
+          alert(`${newDocs.length} documentos importados via Excel!`);
+        }
+      };
+      reader.readAsBinaryString(file);
+    } else {
+       alert('Formato não suportado.');
+    }
+
+    event.target.value = '';
   };
 
   // --- Ações CRUD e Fluxo ---
@@ -244,11 +365,6 @@ const Legislative: React.FC = () => {
     }
   };
 
-  const filteredDocs = documents.filter(doc => 
-    doc.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Cabeçalho */}
@@ -262,12 +378,39 @@ const Legislative: React.FC = () => {
             <p className="text-sm text-slate-500 dark:text-slate-400">Criação, assinatura digital e gestão de documentos.</p>
           </div>
         </div>
-        <button 
-          onClick={openTemplateModal}
-          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary-500/20 transition-all transform hover:-translate-y-0.5"
-        >
-          <Plus className="w-5 h-5" /> Novo Documento
-        </button>
+        
+        <div className="flex gap-2">
+          {/* Import Button */}
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".json,.csv,.xlsx,.xls"
+            className="hidden"
+          />
+          <button 
+            onClick={handleImportClick}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5"
+          >
+            <UploadCloud className="w-5 h-5" /> <span className="hidden sm:inline">Importar</span>
+          </button>
+
+          {/* Export Button */}
+          <button 
+            onClick={handleExportData}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5"
+            title="Exportar documentos filtrados (Excel)"
+          >
+            <FileSpreadsheet className="w-5 h-5" /> <span className="hidden sm:inline">Exportar</span>
+          </button>
+
+          <button 
+            onClick={openTemplateModal}
+            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary-500/20 transition-all transform hover:-translate-y-0.5"
+          >
+            <Plus className="w-5 h-5" /> Novo Documento
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -348,7 +491,8 @@ const Legislative: React.FC = () => {
                     </button>
                     <button 
                       className="p-1.5 text-gray-400 hover:text-green-600 transition-colors" 
-                      title="Baixar PDF/Doc"
+                      title={doc.originalUrl ? "Baixar Original" : "Baixar PDF"}
+                      onClick={() => doc.originalUrl ? window.open(doc.originalUrl, '_blank') : null}
                     >
                       <Download className="w-5 h-5" />
                     </button>
@@ -396,6 +540,8 @@ const Legislative: React.FC = () => {
         )}
       </div>
 
+      {/* ... (Modals maintained same as previous version but with update handlers) ... */}
+      
       {/* Modal de Seleção de Template */}
       <Modal
         isOpen={isTemplateModalOpen}
@@ -667,6 +813,15 @@ const Legislative: React.FC = () => {
                  {selectedDoc.subject}
                </p>
             </div>
+
+            {selectedDoc.originalUrl && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                <h4 className="text-sm font-bold text-blue-900 dark:text-blue-300 mb-1">Documento Original (Migrado)</h4>
+                <a href={selectedDoc.originalUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all">
+                  {selectedDoc.originalUrl}
+                </a>
+              </div>
+            )}
 
             {selectedDoc.status === 'Assinado' && (
               <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800 flex items-start gap-3">

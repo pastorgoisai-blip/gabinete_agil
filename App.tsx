@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import CopilotWidget from './components/CopilotWidget'; // Import Copilot
 import Dashboard from './pages/Dashboard';
 import Voters from './pages/Voters';
 import Demands from './pages/Demands';
@@ -19,6 +20,7 @@ import Projects from './pages/Projects';
 import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import HelpSupport from './pages/HelpSupport';
+import { ProfileProvider } from './contexts/ProfileContext';
 
 // Layout Component to wrap authenticated pages
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -36,10 +38,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-slate-950">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-
+      
       <div className="flex flex-col flex-1 w-0 overflow-hidden">
-        <Header
-          toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        <Header 
+          toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
           darkMode={darkMode}
           toggleDarkMode={() => setDarkMode(!darkMode)}
         />
@@ -50,68 +52,46 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
           </div>
         </main>
+        {/* Global Copilot Widget - Floating Action Button */}
+        <CopilotWidget />
       </div>
     </div>
   );
 };
 
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-
-// Auth Guard Component
-const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session, loading } = useAuth();
-  const location = useLocation();
-
-  if (loading) {
-    return <div className="flex h-screen items-center justify-center">Carregando...</div>;
-  }
-
-  if (!session) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  return <>{children}</>;
-};
-
-const AppRoutes: React.FC = () => {
-  return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-
-      {/* Protected Routes - Main Modules */}
-      <Route path="/" element={<RequireAuth><Layout><Dashboard /></Layout></RequireAuth>} />
-      <Route path="/voters" element={<RequireAuth><Layout><Voters /></Layout></RequireAuth>} />
-      <Route path="/demands" element={<RequireAuth><Layout><Demands /></Layout></RequireAuth>} />
-      <Route path="/legislative" element={<RequireAuth><Layout><Legislative /></Layout></RequireAuth>} />
-      <Route path="/settings" element={<RequireAuth><Layout><Settings /></Layout></RequireAuth>} />
-
-      {/* New Pages */}
-      <Route path="/agenda" element={<RequireAuth><Layout><Agenda /></Layout></RequireAuth>} />
-      <Route path="/honored" element={<RequireAuth><Layout><Honored /></Layout></RequireAuth>} />
-      <Route path="/agent" element={<RequireAuth><Layout><Agent /></Layout></RequireAuth>} />
-      <Route path="/projects" element={<RequireAuth><Layout><Projects /></Layout></RequireAuth>} />
-      <Route path="/notifications" element={<RequireAuth><Layout><Notifications /></Layout></RequireAuth>} />
-      <Route path="/reports" element={<RequireAuth><Layout><Reports /></Layout></RequireAuth>} />
-      <Route path="/help" element={<RequireAuth><Layout><HelpSupport /></Layout></RequireAuth>} />
-
-      {/* User Management */}
-      <Route path="/users" element={<RequireAuth><Layout><UserList /></Layout></RequireAuth>} />
-      <Route path="/users/new" element={<RequireAuth><Layout><UserAdd /></Layout></RequireAuth>} />
-      <Route path="/users/edit/:id" element={<RequireAuth><Layout><UserEdit /></Layout></RequireAuth>} />
-
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
-};
-
 const App: React.FC = () => {
   return (
-    <HashRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </HashRouter>
+    <ProfileProvider>
+      <HashRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          
+          {/* Protected Routes - Main Modules */}
+          <Route path="/" element={<Layout><Dashboard /></Layout>} />
+          <Route path="/voters" element={<Layout><Voters /></Layout>} />
+          <Route path="/demands" element={<Layout><Demands /></Layout>} />
+          <Route path="/legislative" element={<Layout><Legislative /></Layout>} />
+          <Route path="/settings" element={<Layout><Settings /></Layout>} />
+          
+          {/* New Pages */}
+          <Route path="/agenda" element={<Layout><Agenda /></Layout>} />
+          <Route path="/honored" element={<Layout><Honored /></Layout>} />
+          <Route path="/agent" element={<Layout><Agent /></Layout>} />
+          <Route path="/projects" element={<Layout><Projects /></Layout>} />
+          <Route path="/notifications" element={<Layout><Notifications /></Layout>} />
+          <Route path="/reports" element={<Layout><Reports /></Layout>} />
+          <Route path="/help" element={<Layout><HelpSupport /></Layout>} />
+          
+          {/* User Management */}
+          <Route path="/users" element={<Layout><UserList /></Layout>} />
+          <Route path="/users/new" element={<Layout><UserAdd /></Layout>} />
+          <Route path="/users/edit/:id" element={<Layout><UserEdit /></Layout>} />
+          
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HashRouter>
+    </ProfileProvider>
   );
 };
 

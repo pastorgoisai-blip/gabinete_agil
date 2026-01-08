@@ -4,13 +4,12 @@ import React from 'react';
 
 export interface User {
   id: string;
+  name: string;
   email: string;
-  full_name: string;
   role: 'admin' | 'manager' | 'staff' | 'volunteer';
   status: 'active' | 'inactive' | 'pending';
   avatar_url?: string;
   last_access?: string;
-  created_at?: string;
 }
 
 export interface Voter {
@@ -22,20 +21,10 @@ export interface Voter {
   city?: string;
   neighborhood?: string;
   birth_date?: string;
-  category: 'Liderança' | 'Apoiador' | 'Voluntário' | 'Indeciso' | string;
+  category: 'Liderança' | 'Apoiador' | 'Voluntário' | 'Indeciso';
   status: 'active' | 'inactive';
   initial?: string; // Helper para UI
   source?: 'Manual' | 'Auto-cadastro' | 'Importação';
-
-  // UI Specific or Extended
-  tags: string[];
-  engagement?: number;
-  lastContact?: string;
-  lastChannel?: string;
-  socialStats?: {
-    instagram?: { isFollowing: boolean; interactions: number };
-    whatsapp?: { status: string; msgCount: number };
-  };
 }
 
 export interface Demand {
@@ -66,10 +55,6 @@ export interface Event {
   location: string;
   description?: string;
   responsible?: string;
-  notes?: string;
-  notifyPolitician?: boolean;
-  notifyMedia?: boolean;
-  notifyStaff?: boolean;
 }
 
 export interface Honoree {
@@ -85,16 +70,15 @@ export interface Honoree {
   email?: string;
 }
 
-export interface Project {
-  id: number;
-  type: string;
+export interface LegislativeProject {
+  id: number | string;
+  type: 'Projeto de Lei' | 'Projeto de Decreto Legislativo' | 'Requerimento' | 'Moção' | 'Ofício';
   number: string;
   year: string;
   author: string;
   summary: string;
-  attachments: number;
+  attachments_count?: number;
   status: 'Finalizado' | 'Em Tramitação' | 'Arquivado';
-  deadline?: string;
   document_url?: string;
 }
 

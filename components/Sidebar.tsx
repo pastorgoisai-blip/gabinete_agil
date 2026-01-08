@@ -14,8 +14,11 @@ import {
   Landmark,
   Bot,
   Bell,
-  LifeBuoy
+  LifeBuoy,
+  User,
+  Zap // Adicionado ícone de agilidade
 } from 'lucide-react';
+import { useProfile } from '../contexts/ProfileContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,6 +26,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
+  const { profile } = useProfile();
+
   // Reordenação para fluxo de trabalho Ágil: Agente (Entrada) -> Demandas (Processamento) -> CRM (Base)
   const menuItems = [
     { label: 'Visão Geral', path: '/', icon: LayoutDashboard },
@@ -31,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { label: 'Base de Eleitores', path: '/voters', icon: Users },
     { label: 'Agenda Oficial', path: '/agenda', icon: Calendar },
     { label: 'Espaço Legislativo', path: '/legislative', icon: Gavel },
-    { label: 'Projetos de Lei', path: '/projects', icon: FolderOpen },
+    { label: 'Matérias Legislativas', path: '/projects', icon: FolderOpen },
     { label: 'Homenageados', path: '/honored', icon: Award },
     { label: 'Relatórios & BI', path: '/reports', icon: BarChart3 },
     { label: 'Equipe & Usuários', path: '/users', icon: Users }, // Ícone repetido intencionalmente para agrupar pessoas
@@ -49,27 +54,53 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
       <div className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-slate-900 text-white transition duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl`}>
         
-        {/* Header */}
-        <div className="flex items-center justify-center h-20 bg-slate-950 border-b border-slate-800/50">
+        {/* Header - Novo Logo Ágil */}
+        <div className="flex items-center justify-center h-24 bg-slate-950 border-b border-slate-800/50">
           <div className="flex items-center gap-3">
-            <div className="bg-primary-600 p-2 rounded-lg shadow-lg shadow-primary-900/50">
-              <Landmark className="w-6 h-6 text-white" />
+            <div className="relative group">
+              <div className="absolute inset-0 bg-primary-500 blur-md opacity-20 group-hover:opacity-40 transition-opacity rounded-full"></div>
+              <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 p-2.5 rounded-xl border border-slate-700 shadow-xl group-hover:border-primary-500/50 transition-all">
+                <Zap className="w-6 h-6 text-primary-400 fill-primary-400/20" />
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold leading-none tracking-tight">Gabinete<br/><span className="font-light text-primary-400">Ágil</span></h1>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold leading-tight">Gabinete</span>
+              <span className="text-xl font-black text-white leading-none tracking-tighter">
+                Ágil<span className="text-primary-500">.</span>
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Profile Snippet */}
-        <div className="p-4 border-b border-slate-800/50">
-          <div className="relative overflow-hidden rounded-xl bg-slate-800 border border-slate-700 aspect-[2.5/1] group cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary-900 to-slate-900 opacity-90"></div>
-            <div className="absolute inset-0 flex flex-col justify-center px-4">
-              <p className="font-bold text-sm text-white">Wederson Lopes</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                <p className="text-xs text-slate-300">Gabinete Online</p>
+        {/* Profile Snippet (Novo Design Redondo) */}
+        <div className="p-5 border-b border-slate-800/50">
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              {profile.photo ? (
+                <img 
+                  src={profile.photo} 
+                  alt={profile.name} 
+                  className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md bg-slate-800" 
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center text-slate-400 shadow-md">
+                  <User className="w-6 h-6" />
+                </div>
+              )}
+              {/* Status Indicator */}
+              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-slate-900 rounded-full" title="Sistema Online"></span>
+            </div>
+            
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <p className="font-bold text-sm text-white truncate leading-tight" title={profile.name}>
+                {profile.name}
+              </p>
+              <p className="text-xs text-slate-400 truncate mt-0.5">
+                {profile.party}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Online</span>
               </div>
             </div>
           </div>
