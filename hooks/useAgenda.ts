@@ -1,118 +1,180 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-// Define local interface if not exported or use generic temporarily. 
-// Ideally we should move Event interface to types.ts but for now I will define generic usage or allow implicit any map.
-// Let's import Event from types if it exists, otherwise define it.
-// Checking types.ts content previously view... it had Event.
-import { Event } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { z } from 'zod';
+
+// --- Esquema de Validação (Zod) ---
+const eventSchema = z.object({
+    title: z.string().min(3, "O título deve ter pelo menos 3 caracteres"),
+    type: z.string().min(1, "Selecione o tipo do evento"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
+    start_time: z.string().min(1, "Defina o horário de início"),
+    end_time: z.string().optional(),
+    location: z.string().optional(),
+    description: z.string().optional(),
+    responsible: z.string().optional(),
+    notes: z.string().optional(),
+    notify_politician: z.boolean().default(false),
+    notify_media: z.boolean().default(false),
+    notify_staff: z.boolean().default(false),
+    source: z.string().default('app'),
+    status: z.string().default('agendado') // 'agendado', 'realizado', 'cancelado'
+});
+
+export type EventFormData = z.infer<typeof eventSchema>;
+
+export interface AgendaEvent extends EventFormData {
+    id: number;
+    cabinet_id: string;
+    created_at?: string;
+    // Helpers de display calculados
+    displayDate?: string;
+    statusColor?: string;
+    statusLabel?: 'hoje' | 'chegando' | 'distante' | 'concluido';
+}
 
 export const useAgenda = () => {
-    const [events, setEvents] = useState<Event[]>([]);
+    const { profile } = useAuth();
+    const [events, setEvents] = useState<AgendaEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => {
+        if (profile?.cabinet_id) {
+            fetchEvents();
+        }
+    }, [profile]);
+
+    // --- Função Auxiliar: Formatar Data para Exibição ---
+    const formatDateDisplay = (dateString: string) => {
+        if (!dateString) return '';
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+    };
+
+    // --- Função Auxiliar: Calcular Status Visual ---
+    const calculateStatus = (date: string): 'hoje' | 'chegando' | 'distante' | 'concluido' => {
+        const today = new Date().toISOString().split('T')[0];
+        const eventDate = new Date(date).toISOString().split('T')[0];
+
+        if (eventDate < today) return 'concluido';
+        if (eventDate === today) return 'hoje';
+
+        // Check se é nos próximos 3 dias
+        const diffTime = new Date(eventDate).getTime() - new Date(today).getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 3) return 'chegando';
+        return 'distante';
+    };
+
     const fetchEvents = async () => {
-        setLoading(true);
         try {
+            setLoading(true);
+            setError(null);
+
             const { data, error } = await supabase
                 .from('events')
                 .select('*')
-                .order('date', { ascending: true }); // sort by date
+                .order('date', { ascending: true })
+                .order('start_time', { ascending: true });
 
             if (error) throw error;
 
-            const mappedEvents = data.map((e: any) => ({
-                ...e,
-                startTime: e.start_time?.slice(0, 5), // 'HH:MM:SS' -> 'HH:MM'
-                endTime: e.end_time?.slice(0, 5),
-                displayDate: new Date(e.date).toLocaleDateString('pt-BR'), // Simple format
-                notifyPolitician: e.notify_politician,
-                notifyMedia: e.notify_media,
-                notifyStaff: e.notify_staff,
-                notes: e.notes || ''
+            const formattedEvents: AgendaEvent[] = (data || []).map(evt => ({
+                ...evt,
+                startTime: evt.start_time, // Compatibilidade com UI antiga se nao refatorar tudo
+                endTime: evt.end_time,
+                notifyPolitician: evt.notify_politician, // Camada de compatibilidade
+                notifyMedia: evt.notify_media,
+                notifyStaff: evt.notify_staff,
+                displayDate: formatDateDisplay(evt.date),
+                statusLabel: calculateStatus(evt.date)
             }));
 
-            setEvents(mappedEvents);
+            setEvents(formattedEvents);
         } catch (err: any) {
-            console.error('Error fetching events:', err);
-            setError(err.message);
+            console.error('Erro ao buscar agenda:', err);
+            setError(err.message || 'Erro ao carregar eventos');
         } finally {
             setLoading(false);
         }
     };
 
-    const createEvent = async (event: Partial<Event>) => {
+    const createEvent = async (data: EventFormData) => {
         try {
-            const { error } = await supabase.from('events').insert([{
-                title: event.title,
-                type: event.type,
-                status: event.status, // 'chegando', etc. logic might need to be recalculable?
-                // Actually status is usually derived from date relative to today.
-                // But for now let's persist what is passed, or valid DB columns.
-                date: event.date,
-                start_time: event.startTime,
-                end_time: event.endTime,
-                location: event.location,
-                description: event.description,
-                responsible: event.responsible,
-                notes: event.notes,
-                notify_politician: event.notifyPolitician,
-                notify_media: event.notifyMedia,
-                notify_staff: event.notifyStaff
-            }]);
+            setLoading(true);
+
+            // Validação Zod (opcional se já validado no form, mas segura)
+            const validated = eventSchema.parse(data);
+
+            const { data: newEvent, error } = await supabase
+                .from('events')
+                .insert([{
+                    ...validated,
+                    cabinet_id: profile?.cabinet_id
+                }])
+                .select()
+                .single();
+
             if (error) throw error;
-            await fetchEvents();
-            return { success: true };
+
+            await fetchEvents(); // Refresh da lista
+            return { success: true, data: newEvent };
         } catch (err: any) {
+            console.error('Erro ao criar evento:', err);
             return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
         }
     };
 
-    const updateEvent = async (id: number | string, updates: Partial<Event>) => {
+    const updateEvent = async (id: number, data: Partial<EventFormData>) => {
         try {
-            const dbUpdates: any = { ...updates };
-            // Map back to snake_case
-            if (updates.startTime) dbUpdates.start_time = updates.startTime;
-            if (updates.endTime) dbUpdates.end_time = updates.endTime;
-            if (updates.notifyPolitician !== undefined) dbUpdates.notify_politician = updates.notifyPolitician;
-            if (updates.notifyMedia !== undefined) dbUpdates.notify_media = updates.notifyMedia;
-            if (updates.notifyStaff !== undefined) dbUpdates.notify_staff = updates.notifyStaff;
-
-            // Remove UI-only fields from dbUpdates to avoid error if they are not in DB columns
-            delete dbUpdates.startTime;
-            delete dbUpdates.endTime;
-            delete dbUpdates.displayDate;
-            delete dbUpdates.notifyPolitician;
-            delete dbUpdates.notifyMedia;
-            delete dbUpdates.notifyStaff;
+            setLoading(true);
 
             const { error } = await supabase
                 .from('events')
-                .update(dbUpdates)
+                .update(data)
                 .eq('id', id);
 
             if (error) throw error;
+
             await fetchEvents();
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
         }
     };
 
-    const deleteEvent = async (id: number | string) => {
+    const deleteEvent = async (id: number) => {
         try {
-            const { error } = await supabase.from('events').delete().eq('id', id);
+            setLoading(true);
+            const { error } = await supabase
+                .from('events')
+                .delete()
+                .eq('id', id);
+
             if (error) throw error;
-            await fetchEvents();
+
+            setEvents(prev => prev.filter(e => e.id !== id));
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchEvents();
-    }, []);
-
-    return { events, loading, error, refresh: fetchEvents, createEvent, updateEvent, deleteEvent };
+    return {
+        events,
+        loading,
+        error,
+        createEvent,
+        updateEvent,
+        deleteEvent,
+        refresh: fetchEvents
+    };
 };

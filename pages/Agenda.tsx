@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Calendar as CalendarIcon, 
-  Plus, 
-  Download, 
-  Settings, 
-  Clock, 
-  MapPin, 
-  AlertCircle, 
-  Edit, 
-  Trash2, 
-  Eye, 
+import {
+  Calendar as CalendarIcon,
+  Plus,
+  Settings,
+  MapPin,
+  AlertCircle,
+  Edit,
+  Trash2,
   Bot,
   Send,
   Zap,
@@ -24,102 +21,28 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import { useAgenda, AgendaEvent, EventFormData } from '../hooks/useAgenda';
 
-// --- Interfaces ---
-
-interface Event {
-  id: number;
-  title: string;
-  type: string;
-  status: 'hoje' | 'chegando' | 'distante' | 'concluido'; 
-  date: string; // Format YYYY-MM-DD
-  displayDate: string; // Format DD/MM/YYYY
-  startTime: string;
-  endTime: string;
-  location: string;
-  responsible?: string;
-  description?: string;
-  notes?: string;
-  // Integrações
-  source: 'app' | 'whatsapp' | 'telegram' | 'google_calendar';
-  externalId?: string; // ID do evento no Google Calendar
-  // Automação
-  notifyPolitician: boolean;
-  notifyMedia: boolean;
-  notifyStaff: boolean;
-}
-
+// --- Interfaces para Chat (Ainda mockado/memory-only por enquanto) ---
 interface ChatMessage {
   id: number;
   sender: 'user' | 'bot';
   text: string;
-  action?: 'create' | 'cancel' | 'consult';
 }
 
-// --- Initial Data (Mockando dados que viriam do Supabase/n8n) ---
-
-const initialEvents: Event[] = [
-  {
-    id: 1,
-    title: 'Cerimonia Militar',
-    type: 'Evento',
-    status: 'hoje',
-    date: '2025-12-09',
-    displayDate: '09/12/2025',
-    startTime: '19:00',
-    endTime: '20:30',
-    location: 'Estádio Jonas Duarte',
-    source: 'app',
-    notifyPolitician: true,
-    notifyMedia: true,
-    notifyStaff: false
-  },
-  {
-    id: 2,
-    title: 'Visita ao Bairro Jundiaí',
-    type: 'Visita Externa',
-    status: 'hoje',
-    date: '2025-12-09',
-    displayDate: '09/12/2025',
-    startTime: '14:00',
-    endTime: '15:30',
-    location: 'Praça Abadia',
-    source: 'whatsapp', // Criado via n8n
-    responsible: 'Agente IA',
-    description: 'Agendado via WhatsApp por Assessor João',
-    notifyPolitician: true,
-    notifyMedia: false,
-    notifyStaff: true
-  },
-  {
-    id: 3,
-    title: 'Almoço com Prefeito',
-    type: 'Reunião Política',
-    status: 'chegando',
-    date: '2025-12-10',
-    displayDate: '10/12/2025',
-    startTime: '12:00',
-    endTime: '13:30',
-    location: 'Restaurante Central',
-    source: 'google_calendar', // Sincronizado do Google
-    notifyPolitician: true,
-    notifyMedia: false,
-    notifyStaff: false
-  }
-];
-
 const Agenda: React.FC = () => {
-  const [events, setEvents] = useState<Event[]>(initialEvents);
-  
+  // Hook de Dados Reais
+  const { events, loading, createEvent, updateEvent, deleteEvent } = useAgenda();
+
   // UI States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
-  
+
   // Selection & Editing
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
   // Assistant State
@@ -130,28 +53,26 @@ const Agenda: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Form State
-  const [formData, setFormData] = useState({
+  const initialFormState: EventFormData = {
     title: '',
     type: 'Sessão Ordinária',
     date: new Date().toISOString().split('T')[0],
     location: '',
-    startTime: '08:00',
-    endTime: '09:00',
+    start_time: '08:00',
+    end_time: '09:00',
     responsible: '',
     description: '',
     notes: '',
-    notifyPolitician: true,
-    notifyMedia: true,
-    notifyStaff: true
-  });
+    notify_politician: true,
+    notify_media: true,
+    notify_staff: true,
+    source: 'app',
+    status: 'agendado'
+  };
+
+  const [formData, setFormData] = useState<EventFormData>(initialFormState);
 
   // --- Helpers ---
-
-  const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return '';
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
-  };
 
   const showNotification = (msg: string) => {
     const id = Date.now().toString();
@@ -161,8 +82,8 @@ const Agenda: React.FC = () => {
     }, 4000);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (statusLabel?: string) => {
+    switch (statusLabel) {
       case 'hoje': return 'border-l-4 border-l-blue-500 bg-blue-50/50 dark:bg-blue-900/10';
       case 'chegando': return 'border-l-4 border-l-yellow-500 bg-yellow-50/50 dark:bg-yellow-900/10';
       case 'distante': return 'border-l-4 border-l-emerald-500 bg-white dark:bg-slate-800';
@@ -173,19 +94,19 @@ const Agenda: React.FC = () => {
 
   const getSourceIcon = (source: string) => {
     switch (source) {
-      case 'whatsapp': 
+      case 'whatsapp':
         return (
           <div className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full border border-green-200 dark:border-green-800" title="Criado via WhatsApp (n8n)">
             <MessageCircle className="w-3 h-3" /> WhatsApp
           </div>
         );
-      case 'telegram': 
+      case 'telegram':
         return (
           <div className="flex items-center gap-1 text-[10px] font-bold text-blue-500 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800" title="Criado via Telegram (n8n)">
             <Send className="w-3 h-3" /> Telegram
           </div>
         );
-      case 'google_calendar': 
+      case 'google_calendar':
         return (
           <div className="flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600" title="Sincronizado com Google Calendar">
             <CalendarIcon className="w-3 h-3" /> Google
@@ -197,53 +118,20 @@ const Agenda: React.FC = () => {
 
   // --- Assistant Logic ---
 
-  const processAssistantCommand = (text: string) => {
-    const lowerText = text.toLowerCase();
-    let responseText = '';
-
-    if (lowerText.includes('cancelar') || lowerText.includes('desmarcar')) {
-      const eventToCancel = events.find(e => lowerText.includes(e.title.toLowerCase()));
-      if (eventToCancel) {
-        setEvents(events.filter(e => e.id !== eventToCancel.id));
-        responseText = `Entendido. Enviei o comando para o n8n cancelar o evento "${eventToCancel.title}" também no Google Calendar.`;
-        showNotification(`🚫 Cancelamento enviado ao Google Calendar`);
-      } else {
-        responseText = 'Não encontrei um evento com esse nome exato.';
-      }
-    } 
-    else if (lowerText.includes('agendar') || lowerText.includes('marcar')) {
-      const newEvent: Event = {
-        id: Date.now(),
-        title: "Nova Reunião (via Chat)",
-        type: 'Reunião',
-        status: 'distante',
-        date: new Date().toISOString().split('T')[0],
-        displayDate: formatDateDisplay(new Date().toISOString().split('T')[0]),
-        startTime: '15:00',
-        endTime: '16:00',
-        location: 'Gabinete',
-        source: 'app',
-        notifyPolitician: true,
-        notifyMedia: false,
-        notifyStaff: true
-      };
-      setEvents([...events, newEvent]);
-      responseText = `Agendei a reunião para hoje às 15h. O n8n já está processando para adicionar ao seu Google Calendar oficial.`;
-      showNotification(`🤖 Sincronizando com Google Calendar...`);
-    } 
-    else {
-      responseText = 'Posso ajudar a marcar ou cancelar. Tente "Marcar reunião às 15h" ou "Cancelar visita".';
-    }
-
-    setChatHistory(prev => [...prev, { id: Date.now(), sender: 'bot', text: responseText }]);
-  };
-
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
     setChatHistory(prev => [...prev, { id: Date.now(), sender: 'user', text: chatInput }]);
     const currentInput = chatInput;
     setChatInput('');
-    setTimeout(() => { processAssistantCommand(currentInput); }, 800);
+
+    // Mock response for now
+    setTimeout(() => {
+      setChatHistory(prev => [...prev, {
+        id: Date.now(),
+        sender: 'bot',
+        text: `Entendido: "${currentInput}". Ainda estou aprendendo a manipular o banco de dados diretamente, mas em breve poderei agendar isso para você!`
+      }]);
+    }, 800);
   };
 
   useEffect(() => {
@@ -255,13 +143,11 @@ const Agenda: React.FC = () => {
   const openNewEvent = () => {
     setIsEditing(false);
     setSelectedEvent(null);
-    setFormData({
-      title: '', type: 'Sessão Ordinária', date: new Date().toISOString().split('T')[0], location: '', startTime: '09:00', endTime: '10:00', responsible: '', description: '', notes: '', notifyPolitician: true, notifyMedia: true, notifyStaff: true
-    });
+    setFormData(initialFormState);
     setIsModalOpen(true);
   };
 
-  const openEditEvent = (event: Event) => {
+  const openEditEvent = (event: AgendaEvent) => {
     setIsEditing(true);
     setSelectedEvent(event);
     setFormData({
@@ -269,45 +155,53 @@ const Agenda: React.FC = () => {
       type: event.type,
       date: event.date,
       location: event.location,
-      startTime: event.startTime,
-      endTime: event.endTime,
+      start_time: event.start_time,
+      end_time: event.end_time || '',
       responsible: event.responsible || '',
       description: event.description || '',
       notes: event.notes || '',
-      notifyPolitician: event.notifyPolitician,
-      notifyMedia: event.notifyMedia,
-      notifyStaff: event.notifyStaff
+      notify_politician: event.notify_politician,
+      notify_media: event.notify_media,
+      notify_staff: event.notify_staff,
+      source: event.source,
+      status: event.status
     });
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title) return;
 
-    if (formData.notifyMedia) showNotification("📢 Disparando aviso no Grupo de Mídia (WhatsApp)...");
-    
-    const eventPayload: any = {
-      ...formData,
-      displayDate: formatDateDisplay(formData.date),
-      status: (formData.date === new Date().toISOString().split('T')[0] ? 'hoje' : 'distante'),
-      source: 'app' // Created manually via app
-    };
+    if (formData.notify_media) showNotification("📢 Disparando aviso no Grupo de Mídia (WhatsApp)...");
 
+    let result;
     if (isEditing && selectedEvent) {
-      setEvents(events.map(e => e.id === selectedEvent.id ? { ...e, ...eventPayload } : e));
+      result = await updateEvent(selectedEvent.id, formData);
     } else {
-      setEvents([...events, { id: Date.now(), ...eventPayload }]);
+      result = await createEvent(formData);
     }
-    
-    setIsModalOpen(false);
+
+    if (result.success) {
+      showNotification(isEditing ? "✅ Evento atualizado!" : "✅ Evento criado com sucesso!");
+      setIsModalOpen(false);
+    } else {
+      alert("Erro ao salvar: " + result.error);
+    }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (selectedEvent) {
-      setEvents(events.filter(e => e.id !== selectedEvent.id));
       if (selectedEvent.source === 'google_calendar') showNotification("🗑️ Solicitando remoção no Google Calendar...");
-      setIsDeleteOpen(false);
-      setSelectedEvent(null);
+
+      const result = await deleteEvent(selectedEvent.id);
+
+      if (result.success) {
+        showNotification("🗑️ Evento excluído.");
+        setIsDeleteOpen(false);
+        setSelectedEvent(null);
+      } else {
+        alert("Erro ao excluir: " + result.error);
+      }
     }
   };
 
@@ -315,13 +209,21 @@ const Agenda: React.FC = () => {
     setIsSyncModalOpen(false);
     showNotification("🔄 Buscando eventos no Google Calendar (n8n)...");
     setTimeout(() => {
-        showNotification("✅ Agenda sincronizada com sucesso!");
+      showNotification("✅ Agenda sincronizada com sucesso!");
     }, 2000);
   };
 
+  if (loading && events.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 relative animate-fade-in">
-      
+
       {/* Toast Notifications */}
       <div className="fixed top-20 right-6 z-50 flex flex-col gap-2 pointer-events-none">
         {notifications.map((note, idx) => (
@@ -342,31 +244,31 @@ const Agenda: React.FC = () => {
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Agenda Oficial Integrada</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              Sincronização ativa (n8n + Supabase)
+              Conectado ao Supabase
             </p>
           </div>
         </div>
 
         <div className="flex gap-2 w-full md:w-auto">
-          <button 
+          <button
             onClick={() => setIsSyncModalOpen(true)}
             className="px-3 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-700 shadow-sm"
             title="Configurar Integração"
           >
             <Settings className="w-5 h-5" />
           </button>
-          <button 
+          <button
             onClick={() => setIsAssistantOpen(!isAssistantOpen)}
             className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 border shadow-sm
-              ${isAssistantOpen 
-                ? 'bg-purple-600 text-white border-purple-600 shadow-purple-500/30' 
+              ${isAssistantOpen
+                ? 'bg-purple-600 text-white border-purple-600 shadow-purple-500/30'
                 : 'bg-white dark:bg-slate-800 text-purple-600 border-purple-200 dark:border-purple-900 hover:bg-purple-50 dark:hover:bg-purple-900/20'}
             `}
           >
             <Bot className="w-5 h-5" />
             {isAssistantOpen ? 'Fechar Assistente' : 'Assistente IA'}
           </button>
-          <button 
+          <button
             onClick={openNewEvent}
             className="flex-1 md:flex-none px-4 py-2 text-sm text-white font-bold bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20"
           >
@@ -377,27 +279,26 @@ const Agenda: React.FC = () => {
 
       {/* Content */}
       <div className="flex flex-col lg:flex-row gap-6">
-        
+
         {/* Timeline */}
         <div className="flex-1 space-y-4">
           {events.length === 0 ? (
             <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700">
               <CalendarIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-500">Nenhum evento agendado.</p>
+              <button onClick={openNewEvent} className="text-primary-600 font-bold mt-2 hover:underline">Criar primeiro evento</button>
             </div>
           ) : (
-            events
-              .sort((a, b) => new Date(`${a.date}T${a.startTime}`).getTime() - new Date(`${b.date}T${b.startTime}`).getTime())
-              .map((event) => (
-              <div key={event.id} className={`group relative bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-md transition-all ${getStatusColor(event.status)}`}>
+            events.map((event) => (
+              <div key={event.id} className={`group relative bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-md transition-all ${getStatusColor(event.statusLabel)}`}>
                 <div className="flex flex-col md:flex-row gap-4 justify-between">
-                  
+
                   {/* Time */}
                   <div className="flex md:flex-col items-center md:items-start gap-2 md:w-32 border-b md:border-b-0 md:border-r border-gray-100 dark:border-slate-700 pb-3 md:pb-0 md:pr-4">
-                    <span className="text-2xl font-bold text-slate-800 dark:text-white">{event.startTime}</span>
+                    <span className="text-2xl font-bold text-slate-800 dark:text-white">{event.start_time?.substring(0, 5)}</span>
                     <div className="flex flex-col">
                       <span className="text-xs text-slate-500 font-medium uppercase">{event.displayDate}</span>
-                      <span className="text-xs text-slate-400">até {event.endTime}</span>
+                      <span className="text-xs text-slate-400">até {event.end_time?.substring(0, 5)}</span>
                     </div>
                   </div>
 
@@ -408,7 +309,7 @@ const Agenda: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
                             {event.title}
-                            {event.status === 'hoje' && <span className="animate-pulse w-2 h-2 rounded-full bg-blue-500"></span>}
+                            {event.statusLabel === 'hoje' && <span className="animate-pulse w-2 h-2 rounded-full bg-blue-500"></span>}
                           </h3>
                           {getSourceIcon(event.source)}
                         </div>
@@ -421,11 +322,11 @@ const Agenda: React.FC = () => {
                         <button onClick={() => { setSelectedEvent(event); setIsDeleteOpen(true); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
-                    
+
                     <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1.5">
                         <MapPin className="w-4 h-4 text-slate-400" />
-                        {event.location}
+                        {event.location || 'Local não definido'}
                       </div>
                       {event.responsible && (
                         <div className="flex items-center gap-1.5">
@@ -438,17 +339,17 @@ const Agenda: React.FC = () => {
                     {/* Automation Badges */}
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Disparos:</span>
-                      {event.notifyPolitician && (
+                      {event.notify_politician && (
                         <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs border border-blue-100 dark:border-blue-800" title="Vereador Notificado">
                           <BellRing className="w-3 h-3" /> Vereador
                         </div>
                       )}
-                      {event.notifyMedia && (
+                      {event.notify_media && (
                         <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs border border-green-100 dark:border-green-800" title="Grupo de Mídia Avisado">
                           <MessageCircle className="w-3 h-3" /> Mídia
                         </div>
                       )}
-                      {event.notifyStaff && (
+                      {event.notify_staff && (
                         <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 text-xs border border-purple-100 dark:border-purple-800" title="Gabinete Avisado">
                           <Share2 className="w-3 h-3" /> Gabinete
                         </div>
@@ -472,15 +373,14 @@ const Agenda: React.FC = () => {
                 </div>
                 <button onClick={() => setIsAssistantOpen(false)} className="hover:bg-purple-700 p-1 rounded transition-colors"><X className="w-4 h-4" /></button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-purple-50/50 dark:bg-slate-900/50">
                 {chatHistory.map(msg => (
                   <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${
-                      msg.sender === 'user' 
-                        ? 'bg-purple-600 text-white rounded-br-none' 
+                    <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.sender === 'user'
+                        ? 'bg-purple-600 text-white rounded-br-none'
                         : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none shadow-sm'
-                    }`}>
+                      }`}>
                       {msg.text}
                     </div>
                   </div>
@@ -490,14 +390,14 @@ const Agenda: React.FC = () => {
 
               <div className="p-3 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700">
                 <div className="relative">
-                  <input 
+                  <input
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                     placeholder="Ex: Cancelar evento hoje..."
                     className="w-full pl-4 pr-10 py-2.5 bg-gray-100 dark:bg-slate-900 border-0 rounded-full text-sm focus:ring-2 focus:ring-purple-500 outline-none dark:text-white"
                   />
-                  <button 
+                  <button
                     onClick={handleSendMessage}
                     className="absolute right-1 top-1 p-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-colors"
                   >
@@ -505,7 +405,7 @@ const Agenda: React.FC = () => {
                   </button>
                 </div>
                 <div className="mt-2 flex justify-center gap-2">
-                   <button className="text-xs text-slate-400 hover:text-purple-600 flex items-center gap-1"><Mic className="w-3 h-3"/> Gravar Áudio</button>
+                  <button className="text-xs text-slate-400 hover:text-purple-600 flex items-center gap-1"><Mic className="w-3 h-3" /> Gravar Áudio</button>
                 </div>
               </div>
             </div>
@@ -520,13 +420,13 @@ const Agenda: React.FC = () => {
         title="Configurar Integração n8n & Google"
         footer={
           <>
-            <button 
+            <button
               onClick={() => setIsSyncModalOpen(false)}
               className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleSyncSimulate}
               className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
             >
@@ -538,47 +438,19 @@ const Agenda: React.FC = () => {
         <div className="space-y-6">
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-300">
             <p>
-              <strong>Como funciona:</strong> O n8n gerencia as conversas no WhatsApp/Telegram. Quando um evento é confirmado lá, ele envia um Webhook para o Supabase, que atualiza este painel em tempo real e o Google Calendar do vereador.
+              <strong>Como funciona:</strong> O n8n gerencia as conversas no WhatsApp/Telegram. Quando um evento é confirmado lá, ele envia um Webhook para o Supabase.
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Google Calendar ID (Vereador)</label>
             <div className="relative">
-              <input 
+              <input
                 defaultValue="vereador.wederson@gmail.com"
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
               />
               <CalendarIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Webhook n8n (Recebimento)</label>
-            <div className="relative">
-              <input 
-                defaultValue="https://n8n.seu-dominio.com/webhook/agenda-update"
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
-              />
-              <LinkIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-3 p-3 border border-gray-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800">
-              <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-              <div>
-                <span className="block text-sm font-bold text-slate-900 dark:text-white">Permitir agendamento via WhatsApp</span>
-                <span className="text-xs text-slate-500">O n8n poderá criar eventos marcados como "Pendente" ou "Confirmado"</span>
-              </div>
-            </label>
-            <label className="flex items-center gap-3 p-3 border border-gray-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800">
-              <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-              <div>
-                <span className="block text-sm font-bold text-slate-900 dark:text-white">Sincronização Bidirecional</span>
-                <span className="text-xs text-slate-500">Alterações aqui refletem no Google Calendar e vice-versa</span>
-              </div>
-            </label>
           </div>
         </div>
       </Modal>
@@ -590,13 +462,13 @@ const Agenda: React.FC = () => {
         title={isEditing ? "Editar Evento" : "Novo Evento Integrado"}
         footer={
           <>
-            <button 
+            <button
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleSave}
               className="px-4 py-2 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
             >
@@ -612,18 +484,18 @@ const Agenda: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Título</label>
-                <input 
+                <input
                   value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
                   placeholder="Ex: Inauguração Escola"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Tipo</label>
-                <select 
+                <select
                   value={formData.type}
-                  onChange={(e) => setFormData({...formData, type: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
                 >
                   <option>Sessão Ordinária</option>
@@ -637,18 +509,18 @@ const Agenda: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data</label>
-                <input 
+                <input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Local</label>
-                <input 
+                <input
                   value={formData.location}
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
                 />
               </div>
@@ -657,19 +529,19 @@ const Agenda: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Início</label>
-                <input 
+                <input
                   type="time"
-                  value={formData.startTime}
-                  onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                  value={formData.start_time}
+                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Fim</label>
-                <input 
+                <input
                   type="time"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({...formData, endTime: e.target.value})}
+                  value={formData.end_time}
+                  onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
                 />
               </div>
@@ -685,26 +557,26 @@ const Agenda: React.FC = () => {
             <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl space-y-3 border border-slate-100 dark:border-slate-700">
               <label className="flex items-center justify-between cursor-pointer group">
                 <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400"><Smartphone className="w-4 h-4" /></div>
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Sync Google Calendar (Vereador)</span>
+                  <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded text-green-600 dark:text-green-400"><MessageCircle className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Avisar Grupo de Mídia (WhatsApp)</span>
                 </div>
-                <input 
-                  type="checkbox" 
-                  checked={true}
-                  disabled
-                  className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-not-allowed opacity-70"
+                <input
+                  type="checkbox"
+                  checked={formData.notify_media}
+                  onChange={(e) => setFormData({ ...formData, notify_media: e.target.checked })}
+                  className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
               </label>
               <div className="h-px bg-slate-200 dark:bg-slate-700"></div>
               <label className="flex items-center justify-between cursor-pointer group">
                 <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded text-green-600 dark:text-green-400"><MessageCircle className="w-4 h-4" /></div>
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Avisar Grupo de Mídia (WhatsApp)</span>
+                  <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400"><BellRing className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Avisar Vereador</span>
                 </div>
-                <input 
-                  type="checkbox" 
-                  checked={formData.notifyMedia}
-                  onChange={(e) => setFormData({...formData, notifyMedia: e.target.checked})}
+                <input
+                  type="checkbox"
+                  checked={formData.notify_politician}
+                  onChange={(e) => setFormData({ ...formData, notify_politician: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
               </label>
@@ -714,10 +586,10 @@ const Agenda: React.FC = () => {
                   <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded text-purple-600 dark:text-purple-400"><Share2 className="w-4 h-4" /></div>
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Notificar Gabinete (Painel/Email)</span>
                 </div>
-                <input 
-                  type="checkbox" 
-                  checked={formData.notifyStaff}
-                  onChange={(e) => setFormData({...formData, notifyStaff: e.target.checked})}
+                <input
+                  type="checkbox"
+                  checked={formData.notify_staff}
+                  onChange={(e) => setFormData({ ...formData, notify_staff: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
               </label>
@@ -736,13 +608,13 @@ const Agenda: React.FC = () => {
         title="Excluir Evento"
         footer={
           <>
-            <button 
+            <button
               onClick={() => setIsDeleteOpen(false)}
               className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleDeleteConfirm}
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
             >
@@ -764,9 +636,9 @@ const Agenda: React.FC = () => {
             {selectedEvent?.title}
           </p>
           {selectedEvent?.source !== 'app' && (
-             <p className="text-sm text-red-500 font-bold bg-red-50 dark:bg-red-900/20 p-2 rounded">
-               Atenção: Este evento foi sincronizado via {selectedEvent?.source}. A exclusão aqui tentará removê-lo na origem via n8n.
-             </p>
+            <p className="text-sm text-red-500 font-bold bg-red-50 dark:bg-red-900/20 p-2 rounded">
+              Atenção: Este evento foi sincronizado via {selectedEvent?.source}. A exclusão aqui tentará removê-lo na origem via n8n.
+            </p>
           )}
         </div>
       </Modal>
