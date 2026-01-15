@@ -1,40 +1,56 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { User } from '../types';
+import { Session, User } from '@supabase/supabase-js';
+
+// Tipo para o Perfil do Usuário (extensão da tabela profiles)
+export interface UserProfile {
+    id: string;
+    name: string;
+    email: string;
+    role: 'super_admin' | 'admin' | 'manager' | 'staff' | 'volunteer';
+    cabinet_id: string | null;
+    avatar_url?: string;
+    is_platform_admin?: boolean;
+}
 
 interface AuthContextType {
     session: Session | null;
-    user: User | null; // Nosso user profile expandido
+    user: User | null;
+    profile: UserProfile | null;
     loading: boolean;
     signOut: () => Promise<void>;
-    isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check active session
+        // Verificar sessão atual
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
+            setUser(session?.user ?? null);
             if (session?.user) {
-                fetchProfile(session.user);
+                fetchProfile(session.user.id);
             } else {
                 setLoading(false);
             }
         });
 
+        // Escutar mudanças na sessão
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
+            setUser(session?.user ?? null);
+
             if (session?.user) {
-                fetchProfile(session.user);
+                fetchProfile(session.user.id);
             } else {
-                setUser(null);
+                setProfile(null);
                 setLoading(false);
             }
         });
@@ -42,54 +58,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => subscription.unsubscribe();
     }, []);
 
-    const fetchProfile = async (authUser: SupabaseUser) => {
+    async function fetchProfile(userId: string) {
         try {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .eq('id', authUser.id)
+                .eq('id', userId)
                 .single();
 
             if (error) {
-                console.error('Error fetching profile:', error);
-            }
-
-            if (data) {
-                setUser(data as User);
+                console.error('Erro ao buscar perfil:', error);
             } else {
-                // Fallback for user without profile row yet (optional: create one)
-                setUser({
-                    id: authUser.id,
-                    email: authUser.email!,
-                    full_name: authUser.user_metadata.full_name || '',
-                    role: 'staff',
-                    status: 'active'
-                });
+                setProfile(data);
             }
         } catch (err) {
-            console.error(err);
+            console.error('Erro inesperado ao buscar perfil:', err);
         } finally {
             setLoading(false);
         }
-    };
+    }
 
     const signOut = async () => {
         await supabase.auth.signOut();
+        setProfile(null);
+        setUser(null);
+        setSession(null);
     };
 
-    const isAdmin = user?.role === 'admin';
-
     return (
-        <AuthContext.Provider value={{ session, user, loading, signOut, isAdmin }}>
+        <AuthContext.Provider value={{ session, user, profile, loading, signOut }}>
             {children}
         </AuthContext.Provider>
     );
-};
+}
 
-export const useAuth = () => {
+export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {
         throw new Error('useAuth must be used within an AuthProvider');
     }
     return context;
-};
+}

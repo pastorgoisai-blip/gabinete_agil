@@ -6,9 +6,15 @@ interface Message {
   text: string;
 }
 
+import { useAuth } from '../contexts/AuthContext';
+
+const N8N_WEBHOOK_URL = 'https://n8n.gabineteonline.online/webhook/118bff13-94e2-4127-bbe2-cbe30bdad68a'; // SUBSTITUA PELA URL DO SEU WEBHOOK N8N
+
 const CopilotWidget: React.FC = () => {
+  const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { type: 'bot', text: 'Olá! Sou o Copilot do Gabinete. Estou conectado a toda sua base de dados. Pergunte sobre leis, demandas ou perfil de eleitores.' }
   ]);
@@ -16,30 +22,55 @@ const CopilotWidget: React.FC = () => {
 
   const toggleOpen = () => setIsOpen(!isOpen);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMsg = input;
     setMessages(prev => [...prev, { type: 'user', text: userMsg }]);
     setInput('');
+    setIsLoading(true);
 
-    // Simulação de resposta da IA
-    setTimeout(() => {
-      let response = '';
-      const lower = userMsg.toLowerCase();
-      
-      if (lower.includes('eleitor') || lower.includes('joão')) {
-        response = 'Encontrei "João Silva" na base. É uma Liderança do bairro Jundiaí. Última interação: há 2 dias (WhatsApp). Tem interesse em "Educação".';
-      } else if (lower.includes('lei') || lower.includes('projeto')) {
-        response = 'O PL 123/2024 sobre "Escola Integral" está na Comissão de Constituição e Justiça. O prazo para emendas encerra amanhã.';
-      } else if (lower.includes('resumo') || lower.includes('dia')) {
-        response = 'Resumo do dia: 3 novos eventos na agenda, 15 demandas de infraestrutura recebidas e a meta de cadastros foi atingida (102%).';
-      } else {
-        response = 'Entendido. Estou analisando os dados do gabinete para te responder sobre isso...';
+    try {
+      // Envio para o N8N
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: userMsg,
+          cabinet_id: profile?.cabinet_id,
+          user_name: profile?.name
+        })
+      });
+
+      if (!response.ok) throw new Error('Falha na comunicação');
+
+      const data = await response.json();
+      console.log('Copilot Response:', data); // Debug para o usuário ver no console
+
+      // Tratamento robusto para respostas do N8N (Objeto ou Array)
+      let responseObj = data;
+      if (Array.isArray(data) && data.length > 0) {
+        responseObj = data[0];
       }
 
-      setMessages(prev => [...prev, { type: 'bot', text: response }]);
-    }, 1000);
+      // Propriedades comuns de retorno (text, output, message)
+      const botResponse =
+        responseObj.text ||
+        responseObj.output ||
+        responseObj.message ||
+        (typeof responseObj === 'string' ? responseObj : JSON.stringify(responseObj));
+
+      setMessages(prev => [...prev, { type: 'bot', text: botResponse || "Recebido, mas sem resposta de texto clara." }]);
+
+    } catch (error) {
+      console.error("Erro Copilot:", error);
+      // Fallback local se falhar ou se a URL não estiver configurada
+      setMessages(prev => [...prev, { type: 'bot', text: "Erro ao conectar com a Inteligência. Verifique a configuração do n8n." }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -53,21 +84,19 @@ const CopilotWidget: React.FC = () => {
       {/* Floating Button (FAB) */}
       <button
         onClick={toggleOpen}
-        className={`fixed bottom-6 right-6 z-50 p-0 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${
-          isOpen 
-            ? 'bg-slate-800 text-slate-400 rotate-90' 
-            : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white animate-bounce-slow'
-        }`}
+        className={`fixed bottom-6 right-6 z-50 p-0 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${isOpen
+          ? 'bg-slate-800 text-slate-400 rotate-90'
+          : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white animate-bounce-slow'
+          }`}
         title="Abrir Copilot de Gabinete"
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-7 h-7" />}
       </button>
 
       {/* Slide-over Chat Panel */}
-      <div 
-        className={`fixed inset-y-0 right-0 z-40 w-96 bg-white dark:bg-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-gray-200 dark:border-slate-700 flex flex-col ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+      <div
+        className={`fixed inset-y-0 right-0 z-40 w-96 bg-white dark:bg-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-gray-200 dark:border-slate-700 flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         {/* Header */}
         <div className="h-16 bg-gradient-to-r from-indigo-600 to-purple-700 flex items-center justify-between px-4 shrink-0">
@@ -87,23 +116,32 @@ const CopilotWidget: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div 
-                className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                  msg.type === 'user' 
-                    ? 'bg-indigo-600 text-white rounded-br-sm' 
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-bl-sm'
-                }`}
+              <div
+                className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.type === 'user'
+                  ? 'bg-indigo-600 text-white rounded-br-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-bl-sm'
+                  }`}
               >
                 {msg.text}
               </div>
             </div>
           ))}
+
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-slate-700 flex gap-2 items-center shadow-sm">
+                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-100"></div>
+                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-200"></div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
         <div className="p-4 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700 shrink-0">
-          
+
           {/* Quick Actions Chips */}
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide">
             <button onClick={() => setInput('Resumo do dia')} className="whitespace-nowrap px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 text-xs font-medium rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors border border-indigo-100 dark:border-indigo-800">
@@ -131,7 +169,7 @@ const CopilotWidget: React.FC = () => {
               className="w-full pl-4 pr-12 py-3 bg-gray-100 dark:bg-slate-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white resize-none h-12 max-h-32"
               rows={1}
             />
-            <button 
+            <button
               onClick={handleSend}
               className="absolute right-2 top-2 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors shadow-sm"
             >
@@ -143,10 +181,10 @@ const CopilotWidget: React.FC = () => {
           </p>
         </div>
       </div>
-      
+
       {/* Backdrop for mobile */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/20 backdrop-blur-[1px] z-30 lg:hidden"
           onClick={() => setIsOpen(false)}
         />

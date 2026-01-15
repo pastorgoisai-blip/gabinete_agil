@@ -6,10 +6,11 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'staff' | 'volunteer';
+  role: 'admin' | 'manager' | 'staff' | 'volunteer' | 'super_admin';
   status: 'active' | 'inactive' | 'pending';
   avatar_url?: string;
   last_access?: string;
+  is_platform_admin?: boolean; // Super Admin Global
 }
 
 export interface Voter {
@@ -70,17 +71,23 @@ export interface Honoree {
   email?: string;
 }
 
-export interface LegislativeProject {
+export interface LegislativeMatter {
   id: number | string;
-  type: 'Projeto de Lei' | 'Projeto de Decreto Legislativo' | 'Requerimento' | 'Moção' | 'Ofício';
-  number: string;
-  year: string;
-  author: string;
-  summary: string;
-  attachments_count?: number;
-  status: 'Finalizado' | 'Em Tramitação' | 'Arquivado';
-  document_url?: string;
+  cabinet_id?: string;
+  external_id?: string;
+  year: number;
+  number: number;
+  type_acronym: string;
+  type_description: string;
+  authors: string;
+  pdf_url?: string;
+  description: string;
+  status: 'filed' | 'processing' | 'approved' | 'rejected' | 'archived';
+  created_at?: string;
 }
+
+// Deprecated: Keeping for compatibility if needed, but should eventually remove
+export type LegislativeProject = LegislativeMatter;
 
 export interface Notification {
   id: number | string;
@@ -93,6 +100,20 @@ export interface Notification {
 }
 
 // --- Component Props ---
+
+
+export interface LegislativeOffice {
+  id: number | string;
+  cabinet_id?: string;
+  type?: string;
+  number: string;
+  year: string;
+  recipient: string;
+  subject: string;
+  status: 'Pendente' | 'Enviado' | 'Respondido';
+  document_url?: string;
+  created_at?: string;
+}
 
 export interface StatCardProps {
   title: string;
@@ -108,4 +129,54 @@ export interface MenuItem {
   label: string;
   path: string;
   icon: React.ElementType;
+}
+
+// --- Agent Interfaces ---
+
+export interface AgentConfiguration {
+  id: string;
+  cabinet_id: string;
+  agent_name: string;
+  tone: string;
+  welcome_message: string;
+  is_active: boolean;
+}
+
+export interface AgentChannel {
+  id: string;
+  cabinet_id: string;
+  type: 'whatsapp' | 'instagram' | 'facebook' | 'telegram' | 'email' | 'sms';
+  name: string;
+  status: 'connected' | 'disconnected' | 'error';
+  credentials?: any;
+}
+
+export interface AgentRule {
+  id: string;
+  cabinet_id: string;
+  keywords: string[];
+  action_type: 'text_response' | 'human_handoff' | 'register_demand';
+  response_text: string;
+  is_active: boolean;
+  usage_count: number;
+}
+
+export interface AgentConversation {
+  id: string;
+  cabinet_id: string;
+  external_id: string;
+  platform: string;
+  user_name: string;
+  status: 'open' | 'closed' | 'human_needed';
+  last_message_at: string;
+  tags: string[];
+}
+
+export interface AgentMessage {
+  id: string;
+  conversation_id: string;
+  sender_type: 'user' | 'agent' | 'system';
+  content: string;
+  created_at: string;
+  metadata?: any;
 }

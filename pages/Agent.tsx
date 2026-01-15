@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Save, 
-  MessageSquare, 
-  AlertCircle, 
-  Timer, 
-  Smile, 
-  Share2, 
-  MoreVertical, 
-  Bot, 
-  Plus, 
-  Filter, 
-  Construction, 
+import {
+  Save,
+  MessageSquare,
+  AlertCircle,
+  Timer,
+  Smile,
+  Share2,
+  MoreVertical,
+  Bot,
+  Plus,
+  Filter,
+  Construction,
   Zap,
   Activity,
   CheckCircle,
@@ -28,10 +28,303 @@ import {
   Paperclip
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { AgentConfiguration, AgentRule, AgentChannel, AgentConversation, AgentMessage } from '../types';
 
 const Agent: React.FC = () => {
-  const [agentActive, setAgentActive] = useState(true);
-  
+  const { user, profile } = useAuth();
+  const [loading, setLoading] = useState(false);
+
+  // Placeholder for unimplemented features
+  const handleSave = () => {
+    alert('Funcionalidade sendo implementada...');
+    closeModal();
+  };
+
+  // Agent Config State
+  const [config, setConfig] = useState<AgentConfiguration>({
+    id: '',
+    cabinet_id: '',
+    agent_name: 'Assistente Virtual',
+    tone: 'Empático e Acolhedor',
+    welcome_message: 'Olá! Como posso ajudar?',
+    is_active: true
+  });
+
+  // Load Configuration
+  useEffect(() => {
+    if (profile?.cabinet_id) {
+      fetchConfig();
+    }
+  }, [profile?.cabinet_id]);
+
+  const fetchConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_configurations')
+        .select('*')
+        .eq('cabinet_id', profile?.cabinet_id)
+        .single();
+
+      if (data) {
+        setConfig(data);
+      } else if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" which is fine for new setup
+        console.error('Error fetching config:', error);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    if (!profile?.cabinet_id) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('agent_configurations')
+        .upsert({
+          cabinet_id: profile.cabinet_id,
+          agent_name: config.agent_name,
+          tone: config.tone,
+          welcome_message: config.welcome_message,
+          is_active: config.is_active,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'cabinet_id' })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) setConfig(data);
+
+      closeModal();
+      alert('Configurações salvas com sucesso!'); // In real app use toast
+    } catch (err) {
+      console.error('Error saving config:', err);
+      alert('Erro ao salvar configurações.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleAgentActive = async () => {
+    const newState = !config.is_active;
+    setConfig(prev => ({ ...prev, is_active: newState }));
+
+    // Auto-save toggle
+    if (config.id) { // Only if exists
+      await supabase
+        .from('agent_configurations')
+        .update({ is_active: newState })
+        .eq('id', config.id);
+    }
+  };
+
+  // Channels State
+  const [channels, setChannels] = useState<AgentChannel[]>([]);
+  const [channelForm, setChannelForm] = useState<Partial<AgentChannel>>({});
+
+  useEffect(() => {
+    if (profile?.cabinet_id) {
+      fetchConfig();
+      fetchRules();
+      fetchChannels();
+      fetchConversations();
+    }
+  }, [profile?.cabinet_id]);
+
+  const fetchChannels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_channels')
+        .select('*')
+        .eq('cabinet_id', profile?.cabinet_id);
+
+      if (data) setChannels(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSaveChannel = async () => {
+    if (!profile?.cabinet_id || !channelForm.type) return;
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('agent_channels')
+        .upsert({
+          id: channelForm.id,
+          cabinet_id: profile.cabinet_id,
+          type: channelForm.type,
+          name: channelForm.name,
+          status: 'connected', // Assume connected on save for now
+          credentials: channelForm.credentials || {},
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      fetchChannels();
+      closeModal();
+      alert('Integração salva com sucesso!');
+    } catch (err) {
+      console.error('Error saving channel:', err);
+      alert('Erro ao salvar integração.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Rules State
+  const [rules, setRules] = useState<AgentRule[]>([]);
+  const [ruleForm, setRuleForm] = useState<Partial<AgentRule>>({});
+
+  useEffect(() => {
+    // ... (This useEffect is redundant now as I merged it above, but keeping for structure if needed or removing)
+  }, []); // Removing the redundant useEffect call below in logic
+
+  const fetchRules = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_rules')
+        .select('*')
+        .eq('cabinet_id', profile?.cabinet_id)
+        .order('created_at', { ascending: false });
+
+      if (data) setRules(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveRule = async () => {
+    if (!profile?.cabinet_id || !ruleForm.keywords || !ruleForm.response_text) return;
+    setLoading(true);
+
+    // Parse keywords if string (from input) or use array
+    let keywordsArray = Array.isArray(ruleForm.keywords)
+      ? ruleForm.keywords
+      : (ruleForm.keywords as string).split(',').map((k: string) => k.trim());
+
+    try {
+      const { data, error } = await supabase
+        .from('agent_rules')
+        .upsert({
+          id: ruleForm.id, // If exists, update
+          cabinet_id: profile.cabinet_id,
+          keywords: keywordsArray,
+          action_type: ruleForm.action_type || 'text_response',
+          response_text: ruleForm.response_text,
+          is_active: ruleForm.is_active ?? true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      fetchRules(); // Refresh list
+      closeModal();
+      setRuleForm({});
+    } catch (err) {
+      console.error('Error saving rule:', err);
+      alert('Erro ao salvar regra.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta regra?')) return;
+
+    try {
+      await supabase.from('agent_rules').delete().eq('id', id);
+      fetchRules();
+      closeModal();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Conversations State
+  const [conversations, setConversations] = useState<AgentConversation[]>([]);
+  const [activeConversationMessages, setActiveConversationMessages] = useState<AgentMessage[]>([]);
+
+  useEffect(() => {
+    if (profile?.cabinet_id) {
+      fetchConfig();
+      fetchRules();
+      fetchConversations();
+    }
+  }, [profile?.cabinet_id]);
+
+  // Realtime subscription could be added here later
+
+  const fetchConversations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_conversations')
+        .select('*')
+        .eq('cabinet_id', profile?.cabinet_id)
+        .order('last_message_at', { ascending: false });
+
+      if (data) setConversations(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSelectConversation = async (conversation: AgentConversation) => {
+    setSelectedItem(conversation);
+    setActiveModal('chatDetails');
+    setActiveConversationMessages([]); // Clear previous
+
+    try {
+      const { data, error } = await supabase
+        .from('agent_messages')
+        .select('*')
+        .eq('conversation_id', conversation.id)
+        .order('created_at', { ascending: true });
+
+      if (data) setActiveConversationMessages(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim() || !selectedItem?.id) return;
+
+    // Optimistic UI update could be done here
+
+    try {
+      const { error } = await supabase
+        .from('agent_messages')
+        .insert({
+          conversation_id: selectedItem.id,
+          sender_type: 'agent', // Human agent answering via dashboard
+          content: chatMessage
+        });
+
+      if (error) throw error;
+
+      setChatMessage('');
+      // Refresh messages
+      const { data } = await supabase
+        .from('agent_messages')
+        .select('*')
+        .eq('conversation_id', selectedItem.id)
+        .order('created_at', { ascending: true });
+
+      if (data) setActiveConversationMessages(data);
+
+    } catch (err) {
+      console.error('Error sending message:', err);
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
   // State for Modals
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -42,22 +335,42 @@ const Agent: React.FC = () => {
   const openModal = (modalName: string, item: any = null) => {
     setActiveModal(modalName);
     setSelectedItem(item);
+
+    if (modalName === 'editIntegration') {
+      // If editing an existing channel from the list (item is AgentChannel)
+      // Or if clicking the mock "WhatsApp" button, we might need to find if it exists or create new default
+      if (item && item.id) {
+        setChannelForm({ ...item });
+      } else {
+        // Default for new/mock
+        const type = item?.name?.toLowerCase().includes('whatsapp') ? 'whatsapp' : 'instagram';
+        // Try to find existing channel of this type
+        const existing = channels.find(c => c.type === type);
+        if (existing) {
+          setChannelForm({ ...existing });
+        } else {
+          setChannelForm({
+            type: type,
+            name: item?.name || 'WhatsApp',
+            credentials: { api_key: '', webhook_url: 'https://api.camaramanager.com/webhook/wa' }
+          });
+        }
+      }
+    }
+
+    // ... existing rule logic
+    if (modalName === 'newRule') {
+      if (item) {
+        setRuleForm({ ...item });
+      } else {
+        setRuleForm({ keywords: [], action_type: 'text_response', response_text: '' });
+      }
+    }
   };
 
   const closeModal = () => {
     setActiveModal(null);
     setSelectedItem(null);
-  };
-
-  const handleSave = () => {
-    // Simulate save action
-    closeModal();
-    // In a real app, show a toast here
-  };
-
-  const handleSendMessage = () => {
-    if (!chatMessage.trim()) return;
-    setChatMessage('');
   };
 
   // Mock Data
@@ -84,18 +397,18 @@ const Agent: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <label className="inline-flex items-center cursor-pointer group">
-            <input 
-              type="checkbox" 
-              checked={agentActive}
-              onChange={() => setAgentActive(!agentActive)}
-              className="sr-only peer" 
+            <input
+              type="checkbox"
+              checked={config.is_active}
+              onChange={toggleAgentActive}
+              className="sr-only peer"
             />
             <div className="relative w-14 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-green-500"></div>
             <span className="ml-3 text-sm font-medium text-slate-700 dark:text-slate-200 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
-              {agentActive ? 'Agente Ativo' : 'Agente Pausado'}
+              {config.is_active ? 'Agente Ativo' : 'Agente Pausado'}
             </span>
           </label>
-          <button 
+          <button
             onClick={() => openModal('saveConfig')}
             className="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold transition-all shadow-lg shadow-primary-900/20"
           >
@@ -155,10 +468,10 @@ const Agent: React.FC = () => {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
+
         {/* Left Column (Config) */}
         <div className="xl:col-span-2 space-y-6 order-2 xl:order-1">
-          
+
           {/* Status & Integrations */}
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
             <div className="p-5 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
@@ -166,7 +479,7 @@ const Agent: React.FC = () => {
                 <Share2 className="w-5 h-5 text-slate-400" />
                 Status e Integrações
               </h2>
-              <button 
+              <button
                 onClick={() => openModal('addChannel')}
                 className="text-xs text-primary-600 dark:text-primary-400 font-bold uppercase hover:underline"
               >
@@ -187,7 +500,7 @@ const Agent: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/20">Online</span>
-                  <button 
+                  <button
                     onClick={() => openModal('editIntegration', { name: 'WhatsApp Business API' })}
                     className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                   >
@@ -195,11 +508,11 @@ const Agent: React.FC = () => {
                   </button>
                 </div>
               </div>
-               {/* Instagram */}
+              {/* Instagram */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-500">
-                    <svg fill="currentColor" height="20" viewBox="0 0 16 16" width="20"><path d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.917 3.917 0 0 0-1.417.923A3.927 3.927 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.7.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.916 3.916 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.941a3.926 3.926 0 0 0-.923-1.417A3.911 3.911 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.443.01 10.172 0 7.998 0h.003zm-.717 1.442h.718c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599.28.28.453.546.598.92.11.281.24.705.275 1.485.039.843.047 1.096.047 3.231s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.47 2.47 0 0 1-.599.919c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.233-.047c-.78-.036-1.203-.166-1.486-.276a2.478 2.478 0 0 1-.919-.598 2.48 2.48 0 0 1-.599-.919c-.11-.281-.24-.705-.275-1.485-.038-.843-.046-1.096-.046-3.233 0-2.136.008-2.388.046-3.231.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92.28-.28.546-.453.92-.598.282-.11.705-.24 1.485-.276.738-.034 1.094-.044 2.515-.045v.002zm4.988 1.328a.96.96 0 1 0 0 1.92.96.96 0 0 0 0-1.92zm-4.27 1.122a4.109 4.109 0 1 0 0 8.217 4.109 4.109 0 0 0 0-8.217zm0 1.441a2.667 2.667 0 1 1 0 5.334 2.667 2.667 0 0 1 0-5.334z"/></svg>
+                    <svg fill="currentColor" height="20" viewBox="0 0 16 16" width="20"><path d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.917 3.917 0 0 0-1.417.923A3.927 3.927 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.7.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.916 3.916 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.941a3.926 3.926 0 0 0-.923-1.417A3.911 3.911 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.443.01 10.172 0 7.998 0h.003zm-.717 1.442h.718c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599.28.28.453.546.598.92.11.281.24.705.275 1.485.039.843.047 1.096.047 3.231s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.47 2.47 0 0 1-.599.919c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.233-.047c-.78-.036-1.203-.166-1.486-.276a2.478 2.478 0 0 1-.919-.598 2.48 2.48 0 0 1-.599-.919c-.11-.281-.24-.705-.275-1.485-.038-.843-.046-1.096-.046-3.233 0-2.136.008-2.388.046-3.231.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92.28-.28.546-.453.92-.598.282-.11.705-.24 1.485-.276.738-.034 1.094-.044 2.515-.045v.002zm4.988 1.328a.96.96 0 1 0 0 1.92.96.96 0 0 0 0-1.92zm-4.27 1.122a4.109 4.109 0 1 0 0 8.217 4.109 4.109 0 0 0 0-8.217zm0 1.441a2.667 2.667 0 1 1 0 5.334 2.667 2.667 0 0 1 0-5.334z" /></svg>
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-800 dark:text-white">Instagram Direct</p>
@@ -208,7 +521,7 @@ const Agent: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/20">Online</span>
-                  <button 
+                  <button
                     onClick={() => openModal('editIntegration', { name: 'Instagram Direct' })}
                     className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                   >
@@ -231,11 +544,21 @@ const Agent: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-500 dark:text-slate-400 text-sm font-medium">Nome do Agente</label>
-                  <input className="bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all" type="text" defaultValue="Assistente Virtual do Vereador"/>
+                  <input
+                    className="bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                    type="text"
+                    value={config.agent_name || ''}
+                    onChange={(e) => setConfig({ ...config, agent_name: e.target.value })}
+                    placeholder="Ex: Assistente Virtual"
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-500 dark:text-slate-400 text-sm font-medium">Tom de Voz</label>
-                  <select className="bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all">
+                  <select
+                    className="bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                    value={config.tone || 'Empático e Acolhedor'}
+                    onChange={(e) => setConfig({ ...config, tone: e.target.value })}
+                  >
                     <option>Empático e Acolhedor</option>
                     <option>Formal e Informativo</option>
                     <option>Energético e Motivador</option>
@@ -244,7 +567,12 @@ const Agent: React.FC = () => {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-slate-500 dark:text-slate-400 text-sm font-medium">Mensagem de Boas-vindas</label>
-                <textarea className="bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all h-24 resize-none leading-relaxed" defaultValue="Olá! 👋 Sou o assistente virtual do Wederson Lopes. Estou aqui para ouvir suas sugestões, anotar demandas do seu bairro e te manter atualizado sobre nossa campanha. Como posso ajudar hoje?" />
+                <textarea
+                  className="bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all h-24 resize-none leading-relaxed"
+                  value={config.welcome_message || ''}
+                  onChange={(e) => setConfig({ ...config, welcome_message: e.target.value })}
+                  placeholder="Olá! Sou o assistente virtual..."
+                />
                 <p className="text-slate-400 text-xs">Esta mensagem será enviada no início de cada nova conversa.</p>
               </div>
             </div>
@@ -257,7 +585,7 @@ const Agent: React.FC = () => {
                 <Zap className="w-5 h-5 text-slate-400" />
                 Regras e Gatilhos
               </h2>
-              <button 
+              <button
                 onClick={() => openModal('newRule')}
                 className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 font-bold uppercase hover:underline bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-full border border-primary-100 dark:border-primary-800 transition-all"
               >
@@ -275,27 +603,33 @@ const Agent: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  <tr className="group hover:bg-gray-50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer" onClick={() => openModal('newRule', { keywords: '"Saúde", "Médico"', response: 'Enviar pilar de saúde' })}>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 font-medium text-slate-900 dark:text-white">"Saúde", "Médico", "Posto"</td>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">Enviar pilar de propostas de saúde...</td>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-right">
-                      <span className="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/20">Ativo</span>
-                    </td>
-                  </tr>
-                  <tr className="group hover:bg-gray-50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer" onClick={() => openModal('newRule', { keywords: '"Buraco", "Iluminação"', response: 'Registrar demanda' })}>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 font-medium text-slate-900 dark:text-white">"Buraco", "Iluminação", "Lixo"</td>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">Registrar demanda e solicitar endereço...</td>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-right">
-                      <span className="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/20">Ativo</span>
-                    </td>
-                  </tr>
-                  <tr className="group hover:bg-gray-50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer" onClick={() => openModal('newRule', { keywords: '"Agenda", "Evento"', response: 'Enviar calendário' })}>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 font-medium text-slate-900 dark:text-white">"Agenda", "Evento"</td>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">Enviar link do calendário oficial...</td>
-                    <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-right">
-                      <span className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-400/10 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 ring-1 ring-inset ring-gray-600/20 dark:ring-gray-400/20">Pausado</span>
-                    </td>
-                  </tr>
+                  {rules.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-8 text-center text-slate-500">
+                        Nenhuma regra definida ainda.
+                      </td>
+                    </tr>
+                  ) : (
+                    rules.map((rule) => (
+                      <tr
+                        key={rule.id}
+                        className="group hover:bg-gray-50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer"
+                        onClick={() => openModal('newRule', rule)}
+                      >
+                        <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
+                          {rule.keywords.map(k => `"${k}"`).join(', ')}
+                        </td>
+                        <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-slate-500 dark:text-slate-400 truncate max-w-xs">
+                          {rule.action_type === 'text_response' ? rule.response_text : `Ação: ${rule.action_type}`}
+                        </td>
+                        <td className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 text-right">
+                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${rule.is_active ? 'bg-green-50 text-green-600 ring-green-600/20 dark:bg-green-400/10 dark:text-green-400 dark:ring-green-400/20' : 'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20'}`}>
+                            {rule.is_active ? 'Ativo' : 'Pausado'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -304,7 +638,7 @@ const Agent: React.FC = () => {
 
         {/* Right Column (Monitoring) */}
         <div className="xl:col-span-1 space-y-6 order-1 xl:order-2">
-          
+
           {/* Live Conversations */}
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl flex flex-col h-[450px] shadow-sm">
             <div className="p-5 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
@@ -315,7 +649,7 @@ const Agent: React.FC = () => {
                 </span>
                 Conversas Ao Vivo
               </h2>
-              <button 
+              <button
                 onClick={() => openModal('filters')}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
               >
@@ -323,53 +657,40 @@ const Agent: React.FC = () => {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
-              {/* Chat Item */}
-              <div 
-                onClick={() => openModal('chatDetails', { name: 'Maria Souza', time: '12:42', lastMsg: 'Gostaria de saber as propostas...', tags: ['Automático', 'Educação'] })}
-                className="p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-600"
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-slate-900 dark:text-white font-semibold text-sm">Maria Souza</p>
-                  <span className="text-[10px] text-slate-400">12:42</span>
+              {conversations.length === 0 ? (
+                <div className="text-center text-slate-400 py-10 flex flex-col items-center">
+                  <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-sm">Nenhuma conversa iniciada.</p>
                 </div>
-                <p className="text-slate-500 dark:text-slate-400 text-xs line-clamp-2">Gostaria de saber as propostas para a educação no bairro Vila Nova...</p>
-                <div className="mt-2 flex gap-2">
-                  <span className="inline-flex items-center rounded bg-blue-50 dark:bg-blue-400/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-400/20">Automático</span>
-                  <span className="inline-flex items-center rounded bg-purple-50 dark:bg-purple-400/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-400/20">Educação</span>
-                </div>
-              </div>
-              {/* Chat Item Active */}
-              <div 
-                onClick={() => openModal('chatDetails', { name: 'João Pedro', time: '12:38', lastMsg: 'Há um buraco enorme na Rua 5...', tags: ['Demanda', 'Aguardando Humano'] })}
-                className="p-3 rounded-lg bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 cursor-pointer transition-colors"
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-slate-900 dark:text-white font-semibold text-sm">João Pedro</p>
-                  <span className="text-[10px] text-slate-400">12:38</span>
-                </div>
-                <p className="text-slate-700 dark:text-slate-200 text-xs font-medium line-clamp-2">Há um buraco enorme na Rua 5 que precisa de conserto urgente!</p>
-                <div className="mt-2 flex gap-2">
-                  <span className="inline-flex items-center rounded bg-red-50 dark:bg-red-400/10 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400 ring-1 ring-inset ring-red-600/20 dark:ring-red-400/20">Demanda</span>
-                  <span className="inline-flex items-center rounded bg-yellow-50 dark:bg-yellow-400/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-500 ring-1 ring-inset ring-yellow-600/20 dark:ring-yellow-400/20">Aguardando Humano</span>
-                </div>
-              </div>
-              {/* Chat Item */}
-              <div 
-                onClick={() => openModal('chatDetails', { name: 'Ana Clara', time: '12:30', lastMsg: 'Obrigada pela resposta...', tags: ['Resolvido'] })}
-                className="p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-600"
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-slate-900 dark:text-white font-semibold text-sm">Ana Clara</p>
-                  <span className="text-[10px] text-slate-400">12:30</span>
-                </div>
-                <p className="text-slate-500 dark:text-slate-400 text-xs line-clamp-2">Obrigada pela resposta, vou comparecer ao evento!</p>
-                <div className="mt-2 flex gap-2">
-                  <span className="inline-flex items-center rounded bg-green-50 dark:bg-green-400/10 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/20">Resolvido</span>
-                </div>
-              </div>
+              ) : (
+                conversations.map(conv => (
+                  <div
+                    key={conv.id}
+                    onClick={() => handleSelectConversation(conv)}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors border ${selectedItem?.id === conv.id ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800' : 'hover:bg-gray-50 dark:hover:bg-slate-700 border-transparent hover:border-gray-200 dark:hover:border-slate-600'}`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-slate-900 dark:text-white font-semibold text-sm">{conv.user_name || conv.external_id}</p>
+                      <span className="text-[10px] text-slate-400">{formatTime(conv.last_message_at)}</span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs line-clamp-1">
+                      {conv.platform} - {conv.status}
+                    </p>
+                    {conv.tags && conv.tags.length > 0 && (
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        {conv.tags.map((tag: string, idx: number) => (
+                          <span key={idx} className="inline-flex items-center rounded bg-blue-50 dark:bg-blue-400/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-400/20">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
             <div className="p-3 border-t border-gray-200 dark:border-slate-700 text-center">
-              <button 
+              <button
                 onClick={() => openModal('allConversations')}
                 className="text-sm text-primary-600 dark:text-primary-400 font-bold hover:underline"
               >
@@ -389,12 +710,12 @@ const Agent: React.FC = () => {
             <div className="p-4 flex flex-col gap-3">
               <div className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
                 <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-500 p-2 rounded-lg shrink-0">
-                   <Construction className="w-5 h-5" />
+                  <Construction className="w-5 h-5" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-slate-900 dark:text-white text-sm font-bold">{demand1.title}</p>
                   <p className="text-slate-500 dark:text-slate-400 text-xs">{demand1.location}</p>
-                  <button 
+                  <button
                     onClick={() => openModal('demandDetails', demand1)}
                     className="text-xs text-primary-600 dark:text-primary-400 cursor-pointer hover:underline mt-1 text-left"
                   >
@@ -404,12 +725,12 @@ const Agent: React.FC = () => {
               </div>
               <div className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
                 <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-500 p-2 rounded-lg shrink-0">
-                   <Activity className="w-5 h-5" />
+                  <Activity className="w-5 h-5" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-slate-900 dark:text-white text-sm font-bold">{demand2.title}</p>
                   <p className="text-slate-500 dark:text-slate-400 text-xs">{demand2.location}</p>
-                  <button 
+                  <button
                     onClick={() => openModal('demandDetails', demand2)}
                     className="text-xs text-primary-600 dark:text-primary-400 cursor-pointer hover:underline mt-1 text-left"
                   >
@@ -433,7 +754,9 @@ const Agent: React.FC = () => {
         footer={
           <>
             <button onClick={closeModal} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">Cancelar</button>
-            <button onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm">Confirmar</button>
+            <button onClick={handleSaveConfig} disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm disabled:opacity-50">
+              {loading ? 'Salvando...' : 'Confirmar'}
+            </button>
           </>
         }
       >
@@ -487,72 +810,53 @@ const Agent: React.FC = () => {
       <Modal
         isOpen={activeModal === 'editIntegration'}
         onClose={closeModal}
-        title={`Configurar ${selectedItem?.name || 'Integração'}`}
+        title={`Configurar ${channelForm.name || 'Integração'}`}
         footer={
           <>
             <button onClick={closeModal} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">Cancelar</button>
-            <button onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm">Salvar</button>
+            <button onClick={handleSaveChannel} disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm">
+              {loading ? 'Salvando...' : 'Salvar'}
+            </button>
           </>
         }
       >
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">API Key / Token</label>
-            <input type="password" value="************************" readOnly className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-900 text-slate-500" />
+            <input
+              type="password"
+              value={(channelForm.credentials as any)?.api_key || ''}
+              onChange={(e) => setChannelForm({
+                ...channelForm,
+                credentials: { ...channelForm.credentials, api_key: e.target.value }
+              })}
+              placeholder="Cole seu token aqui"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Webhook URL</label>
-            <input type="text" value="https://api.camaramanager.com/webhook/wa" readOnly className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-900 text-slate-500" />
+            <input
+              type="text"
+              value={(channelForm.credentials as any)?.webhook_url || ''}
+              onChange={(e) => setChannelForm({
+                ...channelForm,
+                credentials: { ...channelForm.credentials, webhook_url: e.target.value }
+              })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-900 text-slate-500"
+            />
           </div>
           <div className="flex items-center justify-between pt-2">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status da Conexão</span>
-            <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-bold">Conectado</span>
+            <span className={`px-2 py-1 rounded text-xs font-bold ${channelForm.id ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+              {channelForm.id ? 'Conectado' : 'Não Configurado'}
+            </span>
           </div>
-          <button className="text-red-500 text-sm font-medium hover:underline flex items-center gap-1 mt-2">
-            <Trash2 className="w-4 h-4" /> Desconectar Integração
-          </button>
-        </div>
-      </Modal>
-
-      {/* New Rule Modal */}
-      <Modal
-        isOpen={activeModal === 'newRule'}
-        onClose={closeModal}
-        title="Nova Regra de Resposta"
-        footer={
-          <>
-            <button onClick={closeModal} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">Cancelar</button>
-            <button onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm">Criar Regra</button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Palavras-Chave (separadas por vírgula)</label>
-            <input 
-              type="text" 
-              placeholder="Ex: buraco, asfalto, rua" 
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" 
-              defaultValue={selectedItem?.keywords || ''}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Ação</label>
-            <select className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
-              <option>Responder com Texto</option>
-              <option>Encaminhar para Humano</option>
-              <option>Registrar Demanda</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Resposta / Instrução</label>
-            <textarea 
-              rows={4} 
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none resize-none"
-              placeholder="Digite a resposta automática..."
-              defaultValue={selectedItem?.response || ''}
-            />
-          </div>
+          {channelForm.id && (
+            <button className="text-red-500 text-sm font-medium hover:underline flex items-center gap-1 mt-2">
+              <Trash2 className="w-4 h-4" /> Desconectar Integração
+            </button>
+          )}
         </div>
       </Modal>
 
@@ -617,31 +921,32 @@ const Agent: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Chat Details Modal - NEW */}
+      {/* Chat Details Modal */}
       <Modal
         isOpen={activeModal === 'chatDetails'}
         onClose={closeModal}
-        title={`Conversa com ${selectedItem?.name || 'Usuário'}`}
-        footer={null} // Custom footer for chat input
+        title={`Conversa com ${selectedItem?.user_name || selectedItem?.external_id || 'Usuário'}`}
+        footer={null}
       >
         <div className="flex flex-col h-[60vh] -mx-6 -my-6">
           {/* Chat History */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-900/30">
-            <div className="text-center text-xs text-slate-400 my-2">Hoje, {selectedItem?.time}</div>
-            
-            {/* Initial mock messages */}
-            {mockMessages.map(msg => (
-              <div key={msg.id} className={`flex w-full ${msg.sender === 'agent' ? 'justify-end' : 'justify-start'}`}>
+            {activeConversationMessages.length === 0 && (
+              <div className="text-center text-slate-400 text-sm mt-10">Nenhuma mensagem nesta conversa.</div>
+            )}
+
+            {activeConversationMessages.map(msg => (
+              <div key={msg.id} className={`flex w-full ${msg.sender_type === 'agent' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`
                   max-w-[80%] p-3 rounded-xl text-sm shadow-sm
-                  ${msg.sender === 'agent' 
-                    ? 'bg-primary-600 text-white rounded-br-none' 
+                  ${msg.sender_type === 'agent'
+                    ? 'bg-primary-600 text-white rounded-br-none'
                     : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-none'
                   }
                 `}>
-                  <p>{msg.text}</p>
-                  <p className={`text-[10px] mt-1 text-right ${msg.sender === 'agent' ? 'text-primary-100' : 'text-slate-400'}`}>
-                    {msg.time}
+                  <p>{msg.content}</p>
+                  <p className={`text-[10px] mt-1 text-right ${msg.sender_type === 'agent' ? 'text-primary-100' : 'text-slate-400'}`}>
+                    {formatTime(msg.created_at)}
                   </p>
                 </div>
               </div>
@@ -651,7 +956,7 @@ const Agent: React.FC = () => {
           {/* Chat Input Area */}
           <div className="p-3 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700">
             <div className="flex gap-2">
-              <input 
+              <input
                 type="text"
                 value={chatMessage}
                 onChange={(e) => setChatMessage(e.target.value)}
@@ -659,19 +964,12 @@ const Agent: React.FC = () => {
                 placeholder="Digite uma mensagem..."
                 className="flex-1 bg-gray-100 dark:bg-slate-900 border-0 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none text-slate-900 dark:text-white"
               />
-              <button 
+              <button
                 onClick={handleSendMessage}
                 className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+                disabled={!chatMessage.trim()}
               >
                 <Send className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button className="text-xs text-slate-500 hover:text-primary-600 flex items-center gap-1 p-1">
-                <Paperclip className="w-3 h-3" /> Anexar
-              </button>
-              <button className="text-xs text-slate-500 hover:text-primary-600 flex items-center gap-1 p-1">
-                <Zap className="w-3 h-3" /> Resposta Rápida
               </button>
             </div>
           </div>

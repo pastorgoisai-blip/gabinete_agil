@@ -1,159 +1,243 @@
+
 import React, { useState } from 'react';
-import { Landmark, Mail, Lock, Eye, EyeOff, Building2, ChevronDown, Zap } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
-const Login: React.FC = () => {
-  const navigate = useNavigate();
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [message, setMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  const toggleTheme = () => {
-    if (isDark) {
-      document.documentElement.classList.remove('dark');
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.add('dark');
-      setIsDark(true);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || 'Erro ao fazer login');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/');
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const { error, data } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: email.split('@')[0], // Nome temporário
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.user && data.session === null) {
+        setMessage('Verifique seu e-mail para confirmar o cadastro!');
+        setMode('signin');
+      } else {
+        // Se auto-confirm estiver ligado ou login automatico
+        navigate('/');
+      }
+
+    } catch (err: any) {
+      setError(err.message || 'Erro ao criar conta');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center p-4 transition-colors duration-300 font-sans relative">
-      
-      {/* Theme Toggle (Absolute) */}
-      <button 
-        className="absolute top-4 right-4 p-2 rounded-full bg-white dark:bg-slate-800 shadow-sm text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors border border-gray-200 dark:border-slate-700"
-        onClick={toggleTheme}
-      >
-        {isDark ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
-        ) : (
-           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        )}
-      </button>
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Lado Esquerdo - Imagem/Branding */}
+      <div className="hidden w-1/2 bg-blue-600 lg:flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800 opacity-90 z-10"></div>
+        {/* Placeholder para imagem de fundo se desejar */}
+        <img
+          src="https://images.unsplash.com/photo-1555848962-6e79363ec58f?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
+          alt="Background"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
 
-      <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden transform transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-white/10">
-        
-        {/* Header with Pattern */}
-        <div className="relative bg-gradient-to-br from-primary-600 to-blue-700 p-10 text-center">
-          <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '20px 20px'}}></div>
-          <div className="relative z-10 flex flex-col items-center justify-center text-white">
-            <div className="bg-white/20 backdrop-blur-md p-3.5 rounded-2xl mb-4 shadow-inner ring-1 ring-white/30">
-              <Zap className="w-10 h-10 text-yellow-300 fill-yellow-300/20" />
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xs uppercase tracking-[0.3em] font-bold text-blue-200 mb-1">Gabinete</span>
-              <h1 className="text-4xl font-black tracking-tighter text-white drop-shadow-sm">Ágil<span className="text-yellow-300">.</span></h1>
-            </div>
-            <p className="text-blue-100 text-sm font-medium opacity-90 mt-2">Portal de Gestão Política & CRM</p>
+        <div className="relative z-20 text-white max-w-lg p-12">
+          <div className="mb-8 flex items-center gap-3">
+            <ShieldCheck className="h-10 w-10 text-blue-200" />
+            <h1 className="text-4xl font-bold tracking-tight">Gabinete Ágil</h1>
+          </div>
+          <p className="text-xl text-blue-100 mb-8 leading-relaxed">
+            Gestão política moderna e eficiente para o seu mandato. Otimize processos, gerencie eleitores e foque no que importa.
+          </p>
+          <div className="flex gap-4 text-sm text-blue-200 font-medium">
+            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div> Multi-tenant Seguro</span>
+            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div> Gestão Financeira</span>
+            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div> Agenda Inteligente</span>
           </div>
         </div>
+      </div>
 
-        {/* Form Section */}
-        <div className="p-8 sm:p-10 space-y-6">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Acesso ao Sistema</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Entre com suas credenciais para continuar</p>
+      {/* Lado Direito - Formulário */}
+      <div className="flex w-full items-center justify-center lg:w-1/2 px-4 sm:px-12">
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-center lg:text-left">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+              {mode === 'signin' ? 'Bem-vindo de volta' : 'Comece agora'}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {mode === 'signin'
+                ? 'Entre com suas credenciais para acessar o painel.'
+                : 'Crie sua conta para gerenciar seu gabinete.'}
+            </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            
-            {/* Organization Select */}
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="organization">
-                Organização
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Building2 className="text-slate-400 w-5 h-5" />
+          <form className="mt-8 space-y-6" onSubmit={mode === 'signin' ? handleLogin : handleSignUp}>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                <div className="relative mt-1">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Mail className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 pl-10 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 sm:text-sm transition-all"
+                    placeholder="seu@email.com"
+                  />
                 </div>
-                <select 
-                  className="block w-full pl-10 pr-10 py-2.5 text-base border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-900/50 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow sm:text-sm shadow-sm appearance-none cursor-pointer"
-                  id="organization" 
-                  name="organization"
-                  defaultValue=""
-                >
-                  <option disabled value="">Selecione uma organização...</option>
-                  <option value="org1">Gabinete Wederson Lopes</option>
-                  <option value="org2">Câmara Municipal de Anápolis</option>
-                  <option value="org3">Administração Geral</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <ChevronDown className="text-slate-400 w-4 h-4" />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">Senha</label>
+                <div className="relative mt-1">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Lock className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={mode === 'signin' ? "current-password" : "new-password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 pl-10 pr-10 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 sm:text-sm transition-all"
+                    placeholder="••••••••"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-5 w-5" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Email Input */}
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="email">
-                Email
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="text-slate-400 w-5 h-5" />
+            {error && (
+              <div className="rounded-md bg-red-50 p-4 border border-red-200">
+                <div className="flex">
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">Erro na autenticação</h3>
+                    <div className="mt-2 text-sm text-red-700">
+                      <p>{error}</p>
+                    </div>
+                  </div>
                 </div>
-                <input 
-                  id="email" 
-                  type="email" 
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-900/50 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow sm:text-sm shadow-sm placeholder-slate-400 dark:placeholder-slate-500" 
-                  placeholder="nome@campanha.com"
-                />
               </div>
-            </div>
+            )}
 
-            {/* Password Input */}
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="password">
-                Senha
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="text-slate-400 w-5 h-5" />
+            {message && (
+              <div className="rounded-md bg-green-50 p-4 border border-green-200">
+                <div className="flex">
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-green-800">Sucesso</h3>
+                    <div className="mt-2 text-sm text-green-700">
+                      <p>{message}</p>
+                    </div>
+                  </div>
                 </div>
-                <input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"}
-                  className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-900/50 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow sm:text-sm shadow-sm placeholder-slate-400 dark:placeholder-slate-500" 
-                  placeholder="••••••••"
-                />
-                <button 
-                  type="button" 
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
               </div>
-            </div>
+            )}
 
-            <div className="pt-2">
-              <button 
-                type="submit" 
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-md text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-slate-800 transition-all transform hover:-translate-y-0.5"
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative flex w-full justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-70 transition-all shadow-md hover:shadow-lg"
               >
-                Entrar
+                {loading ? (
+                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                ) : (
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    {mode === 'signin' && <Lock className="h-5 w-5 text-blue-500 group-hover:text-blue-400 transition-colors" aria-hidden="true" />}
+                  </span>
+                )}
+                {mode === 'signin' ? 'Entrar no Sistema' : 'Criar Conta'}
+                {!loading && mode === 'signup' && <ArrowRight className="ml-2 h-4 w-4" />}
               </button>
             </div>
           </form>
 
-          <div className="flex flex-col items-center space-y-4 pt-2">
-            <a href="#" className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
-              Esqueci minha senha
-            </a>
-            <div className="text-xs text-slate-400 dark:text-slate-500 text-center mt-6 border-t border-gray-100 dark:border-slate-700 w-full pt-4">
-              © 2025 Gabinete Ágil. Todos os direitos reservados.
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-gray-50 px-2 text-gray-500">Ou continue com</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-center gap-2">
+              <p className="text-center text-sm text-gray-600">
+                {mode === 'signin' ? 'Não tem uma conta?' : 'Já tem uma conta?'}
+                {' '}
+                <button
+                  onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setMessage(null); }}
+                  className="font-medium text-blue-600 hover:text-blue-500 hover:underline transition-all"
+                >
+                  {mode === 'signin' ? 'Cadastre-se gratuitamente' : 'Faça login'}
+                </button>
+              </p>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default Login;
+}

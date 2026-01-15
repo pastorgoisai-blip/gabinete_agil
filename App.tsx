@@ -1,15 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import CopilotWidget from './components/CopilotWidget'; // Import Copilot
+import CopilotWidget from './components/CopilotWidget';
 import Dashboard from './pages/Dashboard';
 import Voters from './pages/Voters';
 import Demands from './pages/Demands';
 import Legislative from './pages/Legislative';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
-import PlaceholderPage from './pages/PlaceholderPage';
+import Onboarding from './pages/Onboarding';
 import Agenda from './pages/Agenda';
 import Honored from './pages/Honored';
 import Agent from './pages/Agent';
@@ -21,11 +22,16 @@ import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import HelpSupport from './pages/HelpSupport';
 import { ProfileProvider } from './contexts/ProfileContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import AdminDashboard from './pages/admin/AdminDashboard';
 
-// Layout Component to wrap authenticated pages
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// Layout Component (Authenticated)
+const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const { profile, loading } = useAuth(); // Check user profile
 
   useEffect(() => {
     if (darkMode) {
@@ -35,24 +41,34 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
   }, [darkMode]);
 
+  // Lógica de Redirecionamento para Onboarding
+  // 1. Se não carregando
+  // 2. Se tem usuário logado (user)
+  // 3. Mas NÃO tem perfil OU NÃO tem cabinet_id no perfil
+  if (!loading && useAuth().user) {
+    if (!profile || !profile.cabinet_id) {
+      window.location.href = '#/onboarding';
+      return null;
+    }
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-slate-950">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-      
+
       <div className="flex flex-col flex-1 w-0 overflow-hidden">
-        <Header 
-          toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+        <Header
+          toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           darkMode={darkMode}
           toggleDarkMode={() => setDarkMode(!darkMode)}
         />
         <main className="flex-1 relative overflow-y-auto focus:outline-none">
           <div className="py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-              {children}
+              {children || <Outlet />}
             </div>
           </div>
         </main>
-        {/* Global Copilot Widget - Floating Action Button */}
         <CopilotWidget />
       </div>
     </div>
@@ -61,37 +77,49 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => {
   return (
-    <ProfileProvider>
-      <HashRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          {/* Protected Routes - Main Modules */}
-          <Route path="/" element={<Layout><Dashboard /></Layout>} />
-          <Route path="/voters" element={<Layout><Voters /></Layout>} />
-          <Route path="/demands" element={<Layout><Demands /></Layout>} />
-          <Route path="/legislative" element={<Layout><Legislative /></Layout>} />
-          <Route path="/settings" element={<Layout><Settings /></Layout>} />
-          
-          {/* New Pages */}
-          <Route path="/agenda" element={<Layout><Agenda /></Layout>} />
-          <Route path="/honored" element={<Layout><Honored /></Layout>} />
-          <Route path="/agent" element={<Layout><Agent /></Layout>} />
-          <Route path="/projects" element={<Layout><Projects /></Layout>} />
-          <Route path="/notifications" element={<Layout><Notifications /></Layout>} />
-          <Route path="/reports" element={<Layout><Reports /></Layout>} />
-          <Route path="/help" element={<Layout><HelpSupport /></Layout>} />
-          
-          {/* User Management */}
-          <Route path="/users" element={<Layout><UserList /></Layout>} />
-          <Route path="/users/new" element={<Layout><UserAdd /></Layout>} />
-          <Route path="/users/edit/:id" element={<Layout><UserEdit /></Layout>} />
-          
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </HashRouter>
-    </ProfileProvider>
+    <AuthProvider>
+      <ProfileProvider>
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+
+            {/* Rota semi-protegida: Onboarding (Precisa estar logado mas sem gabinete) */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/onboarding" element={<Onboarding />} />
+            </Route>
+
+            {/* Rotas Protegidas e com Layout */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/voters" element={<Voters />} />
+                <Route path="/demands" element={<Demands />} />
+                <Route path="/legislative" element={<Legislative />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/agenda" element={<Agenda />} />
+                <Route path="/honored" element={<Honored />} />
+                <Route path="/agent" element={<Agent />} />
+                <Route path="/projects" element={<Projects />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/help" element={<HelpSupport />} />
+
+                <Route path="/users" element={<UserList />} />
+                <Route path="/users/new" element={<UserAdd />} />
+                <Route path="/users/edit/:id" element={<UserEdit />} />
+              </Route>
+            </Route>
+
+            {/* Rota Super Admin (Separada do Layout padrão) */}
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </HashRouter>
+      </ProfileProvider>
+    </AuthProvider>
   );
 };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu, Bell, Moon, Sun, Search, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
   toggleSidebar: () => void;
@@ -10,6 +11,19 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ toggleSidebar, darkMode, toggleDarkMode }) => {
   const navigate = useNavigate();
+
+  const { profile } = useAuth();
+
+  const getRoleLabel = (role?: string) => {
+    const roles: { [key: string]: string } = {
+      'super_admin': 'Super Admin',
+      'admin': 'Administrador',
+      'manager': 'Gerente',
+      'staff': 'Equipe',
+      'volunteer': 'Voluntário'
+    };
+    return role ? roles[role] || role : 'Visitante';
+  };
 
   return (
     <header className="sticky top-0 z-10 flex h-16 flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
@@ -23,7 +37,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, darkMode, toggleDarkMode
             <span className="sr-only">Open sidebar</span>
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
-          
+
           <div className="flex w-full md:ml-0 max-w-md ml-4">
             <label htmlFor="search-field" className="sr-only">
               Buscar
@@ -42,7 +56,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, darkMode, toggleDarkMode
             </div>
           </div>
         </div>
-        
+
         <div className="ml-4 flex items-center md:ml-6 gap-4">
           <button
             type="button"
@@ -66,12 +80,16 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, darkMode, toggleDarkMode
           {/* Profile dropdown trigger */}
           <div className="relative ml-3">
             <div className="flex items-center gap-3 cursor-pointer p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
-              <div className="h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-primary-600 dark:text-primary-300">
-                <User className="h-5 w-5" />
+              <div className="h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-primary-600 dark:text-primary-300 overflow-hidden">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.name} className="h-full w-full object-cover" />
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
               </div>
               <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Luis Miguel</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Administrador</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{profile?.name || 'Carregando...'}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{getRoleLabel(profile?.role)}</p>
               </div>
             </div>
           </div>

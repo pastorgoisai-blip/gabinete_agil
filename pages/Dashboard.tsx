@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { 
-  Users, 
-  MapPin, 
-  FileText, 
-  TrendingUp, 
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  Users,
+  MapPin,
+  FileText,
+  TrendingUp,
   ArrowUp,
   List,
   Map as MapIcon,
@@ -13,15 +15,16 @@ import {
   MessageCircle,
   Zap,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  BookOpen
 } from 'lucide-react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -30,6 +33,7 @@ import {
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import Modal from '../components/Modal';
 
+// Dados estáticos para gráficos que ainda não têm histórico no banco
 const data = [
   { name: 'Jan', value: 30 },
   { name: 'Fev', value: 45 },
@@ -44,50 +48,112 @@ const pieData = [
   { name: 'Auto', value: 0 },
 ];
 
-// Dados com coordenadas reais aproximadas de Anápolis-GO
-const neighborhoodsData = [
-  { name: 'Jundiaí', count: 46, lat: -16.3380, lng: -48.9450 },
-  { name: 'Fabril', count: 39, lat: -16.3150, lng: -48.9600 },
-  { name: 'Lourdes', count: 31, lat: -16.3200, lng: -48.9300 },
-  { name: 'Centro', count: 28, lat: -16.3285, lng: -48.9534 },
-  { name: 'Vila Góis', count: 15, lat: -16.3400, lng: -48.9600 },
-];
-
-const birthdaysData = [
-  { id: 1, name: 'Dinaldo Alves de fonte', date: '16/12/2025', phone: '(62) 99171-6283', city: 'Anápolis', neighborhood: 'Ibirapuera' },
-  { id: 2, name: 'Marcilene rosa Gonçalves', date: '17/12/2025', phone: '(62) 99232-9025', city: 'Anápolis', neighborhood: 'Residencial pedro ludovico' },
-  { id: 3, name: 'Elias Junio Rosa de Oliveira', date: '17/12/2025', phone: '(62) 99115-6679', city: 'Anápolis', neighborhood: 'Jundiai' },
-];
-
 const COLORS = ['#2563EB', '#64748b'];
 
-const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any) => (
-  <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700 transition-all hover:shadow-md hover:-translate-y-1">
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{title}</p>
-        <h3 className="text-3xl font-black mt-2 text-slate-800 dark:text-white tracking-tight">{value}</h3>
-        {trend && (
-          <p className="text-xs text-emerald-500 font-bold mt-1 flex items-center gap-1">
-            <ArrowUp className="w-3 h-3" /> {trend}
-          </p>
-        )}
-        {subtext && <p className="text-xs text-slate-400 mt-1">{subtext}</p>}
-      </div>
-      <div className={`p-3 rounded-xl ${colorClass}`}>
-        <Icon className="w-6 h-6" />
-      </div>
-    </div>
-  </div>
-);
+import StatCard from '../components/StatCard';
 
 const Dashboard: React.FC = () => {
+  const { profile } = useAuth();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedBirthday, setSelectedBirthday] = useState<any>(null);
 
+  // States para dados reais
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    voters: 0,
+    demands: 0,
+    activeDemands: 0,
+    matters: 0,
+    events: 0,
+    neighborhoodsCovered: 0
+  });
+  const [topNeighborhoods, setTopNeighborhoods] = useState<any[]>([]);
+  const [birthdays, setBirthdays] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (profile?.cabinet_id) {
+      fetchDashboardData();
+    }
+  }, [profile]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // 1. Contagens Totais
+      const votersCount = await supabase.from('voters').select('*', { count: 'exact', head: true });
+      const mattersCount = await supabase.from('legislative_matters').select('*', { count: 'exact', head: true });
+      const demandsTotal = await supabase.from('demands').select('*', { count: 'exact', head: true });
+      const activeDemands = await supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'Pendente'); // PENDENTE como exemplo de 'ativa'
+      const eventsCount = await supabase.from('events').select('*', { count: 'exact', head: true });
+
+      // 2. Bairros (Agrupamento via JS pois Supabase Client não faz Group By nativo facilmente sem RPC)
+      // Trazendo apenas a coluna neighborhood de todos os voters
+      const { data: votersData } = await supabase.from('voters').select('neighborhood').not('neighborhood', 'is', null);
+
+      const neighborhoodMap = new Map();
+      votersData?.forEach((v: any) => {
+        if (v.neighborhood) {
+          const count = neighborhoodMap.get(v.neighborhood) || 0;
+          neighborhoodMap.set(v.neighborhood, count + 1);
+        }
+      });
+
+      const neighborhoodList = Array.from(neighborhoodMap.entries())
+        .map(([name, count]) => ({
+          name,
+          count,
+          // Coordenadas ficticias para demo do mapa se não tiver geocoding real
+          lat: -16.3285 + (Math.random() - 0.5) * 0.05,
+          lng: -48.9534 + (Math.random() - 0.5) * 0.05
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      // 3. Aniversariantes do Mês
+      const currentMonth = new Date().getMonth() + 1;
+      // Note: Filtrar por mês em campo DATE no Supabase pode requerer psql extensions ou filter manual
+      // Vamos tentar filter manual no client para este MVP se a base não for gigante,
+      // ou usar query específica se possível. 
+      // Workaround: Trazer voters com birth_date não nulo e filtrar js
+      const { data: bdayData } = await supabase
+        .from('voters')
+        .select('*')
+        .not('birth_date', 'is', null)
+        .order('birth_date');
+
+      const monthBirthdays = bdayData?.filter((v: any) => {
+        if (!v.birth_date) return false;
+        const month = new Date(v.birth_date).getMonth() + 1; // getMonth é 0-index
+        return month === currentMonth;
+      }).map((v: any) => ({
+        ...v,
+        date: new Date(v.birth_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      })) || [];
+
+
+      setStats({
+        voters: votersCount.count || 0,
+        demands: demandsTotal.count || 0,
+        activeDemands: activeDemands.count || 0,
+        matters: mattersCount.count || 0,
+        events: eventsCount.count || 0,
+        neighborhoodsCovered: neighborhoodMap.size
+      });
+
+      setTopNeighborhoods(neighborhoodList);
+      setBirthdays(monthBirthdays.slice(0, 5)); // Apenas top 5
+
+    } catch (error) {
+      console.error('Erro ao carregar dashboard', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      
+
       {/* Header com IA Insights - Agile Feature */}
       <div className="flex flex-col md:flex-row gap-6">
         <div className="flex-1">
@@ -97,7 +163,9 @@ const Dashboard: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Sistema Online
             </span>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Resumo estratégico do mandato em tempo real.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Resumo do Gabinete: {profile?.cabinet_id ? 'Conectado' : 'Carregando...'}
+          </p>
         </div>
       </div>
 
@@ -116,7 +184,7 @@ const Dashboard: React.FC = () => {
               <span className="text-xs font-bold text-orange-400 uppercase">Prioridade Alta</span>
               <Clock className="w-4 h-4 text-orange-400" />
             </div>
-            <p className="text-sm font-medium">3 Demandas de Saúde vencem em 24h.</p>
+            <p className="text-sm font-medium">{stats.activeDemands} Demandas pendentes de atenção.</p>
             <button className="text-xs text-primary-300 mt-2 hover:underline">Ver demandas &rarr;</button>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-colors cursor-pointer">
@@ -124,7 +192,7 @@ const Dashboard: React.FC = () => {
               <span className="text-xs font-bold text-blue-400 uppercase">Oportunidade</span>
               <Cake className="w-4 h-4 text-blue-400" />
             </div>
-            <p className="text-sm font-medium">15 Lideranças fazem aniversário esta semana.</p>
+            <p className="text-sm font-medium">{birthdays.length} Aniversariantes este mês.</p>
             <button className="text-xs text-primary-300 mt-2 hover:underline">Programar mensagens &rarr;</button>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-colors cursor-pointer">
@@ -132,40 +200,40 @@ const Dashboard: React.FC = () => {
               <span className="text-xs font-bold text-green-400 uppercase">Performance</span>
               <CheckCircle2 className="w-4 h-4 text-green-400" />
             </div>
-            <p className="text-sm font-medium">Agente Virtual resolveu 85% das dúvidas hoje.</p>
-            <button className="text-xs text-primary-300 mt-2 hover:underline">Ver conversas &rarr;</button>
+            <p className="text-sm font-medium">Você cadastrou {stats.matters} matérias legislativas.</p>
+            <button className="text-xs text-primary-300 mt-2 hover:underline">Ver produção &rarr;</button>
           </div>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Total de Eleitores" 
-          value="1.099" 
-          trend="+12%" 
-          icon={Users} 
-          colorClass="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400" 
+        <StatCard
+          title="Total de Eleitores"
+          value={loading ? "..." : stats.voters}
+          trend={null}
+          icon={Users}
+          colorClass="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400"
         />
-        <StatCard 
-          title="Cobertura (Bairros)" 
-          value="365" 
-          icon={MapPin} 
-          colorClass="bg-slate-50 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300" 
+        <StatCard
+          title="Cobertura (Bairros)"
+          value={loading ? "..." : stats.neighborhoodsCovered}
+          icon={MapPin}
+          colorClass="bg-slate-50 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
         />
-        <StatCard 
-          title="Demandas Ativas" 
-          value="15" 
-          subtext="3 Críticas"
-          icon={FileText} 
-          colorClass="bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" 
+        <StatCard
+          title="Matérias Legislativas"
+          value={loading ? "..." : stats.matters}
+          subtext="Projetos e Requerimentos"
+          icon={BookOpen}
+          colorClass="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
         />
-        <StatCard 
-          title="Interações (IA)" 
-          value="428" 
-          trend="+5%"
-          icon={MessageCircle} 
-          colorClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" 
+        <StatCard
+          title="Demandas Totais"
+          value={loading ? "..." : stats.demands}
+          subtext={`${stats.activeDemands} Pendentes`}
+          icon={FileText}
+          colorClass="bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400"
         />
       </div>
 
@@ -174,25 +242,25 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-lg text-slate-800 dark:text-white">Crescimento da Base</h3>
-            <span className="text-xs text-slate-400 px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded-lg">Últimos 6 meses</span>
+            <span className="text-xs text-slate-400 px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded-lg">Demo (Dados Estáticos)</span>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                <Tooltip 
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                <Tooltip
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
                   itemStyle={{ color: '#fff' }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#2563EB" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#2563EB', strokeWidth: 2, stroke: '#fff' }} 
-                  activeDot={{ r: 6 }} 
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#2563EB"
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: '#2563EB', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -245,17 +313,17 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-              <MapPin className="text-primary-600 w-5 h-5" /> Mapa de Calor (Bairros)
+              <MapPin className="text-primary-600 w-5 h-5" /> Mapa de Calor (Top 5 Bairros)
             </h3>
-            
+
             <div className="flex bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
-              <button 
+              <button
                 onClick={() => setViewMode('list')}
                 className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-600 shadow text-primary-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
               >
                 <List className="w-4 h-4" />
               </button>
-              <button 
+              <button
                 onClick={() => setViewMode('map')}
                 className={`p-1.5 rounded-md transition-all ${viewMode === 'map' ? 'bg-white dark:bg-slate-600 shadow text-primary-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
               >
@@ -266,7 +334,9 @@ const Dashboard: React.FC = () => {
 
           {viewMode === 'list' ? (
             <div className="space-y-3">
-              {neighborhoodsData.map((bairro, idx) => (
+              {topNeighborhoods.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">Nenhum dado de localização encontrado.</p>
+              ) : topNeighborhoods.map((bairro, idx) => (
                 <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-slate-700 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 px-2 rounded-lg transition-colors cursor-pointer group">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-slate-400 w-4">{idx + 1}</span>
@@ -274,7 +344,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-24 h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary-600 rounded-full" style={{ width: `${(bairro.count / 50) * 100}%` }}></div>
+                      <div className="h-full bg-primary-600 rounded-full" style={{ width: `${(bairro.count / (topNeighborhoods[0]?.count || 1)) * 100}%` }}></div>
                     </div>
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{bairro.count}</span>
                   </div>
@@ -283,9 +353,9 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <div className="h-64 w-full rounded-xl overflow-hidden z-0 relative">
-              <MapContainer 
-                center={[-16.3285, -48.9534]} 
-                zoom={13} 
+              <MapContainer
+                center={[-16.3285, -48.9534]}
+                zoom={12}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom={true}
               >
@@ -293,11 +363,11 @@ const Dashboard: React.FC = () => {
                   attribution='&copy; OpenStreetMap'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {neighborhoodsData.map((bairro, idx) => (
-                  <CircleMarker 
+                {topNeighborhoods.map((bairro, idx) => (
+                  <CircleMarker
                     key={idx}
                     center={[bairro.lat, bairro.lng]}
-                    radius={Math.max(5, bairro.count / 3)}
+                    radius={Math.max(5, (bairro.count * 2))}
                     fillColor="#2563eb"
                     color="#1e40af"
                     weight={1}
@@ -321,14 +391,16 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-              <Cake className="text-pink-500 w-5 h-5" /> Aniversariantes
+              <Cake className="text-pink-500 w-5 h-5" /> Aniversariantes do Mês
             </h3>
             <button className="text-xs text-primary-600 hover:underline">Ver todos</button>
           </div>
-          
+
           <div className="space-y-1">
-            {birthdaysData.map((person) => (
-              <div 
+            {birthdays.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">Nenhum aniversariante encontrado neste mês.</p>
+            ) : birthdays.map((person) => (
+              <div
                 key={person.id}
                 onClick={() => setSelectedBirthday(person)}
                 className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-3 px-3 border-b border-gray-100 dark:border-slate-700 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer group"
@@ -341,7 +413,7 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-sm font-bold text-slate-800 dark:text-white group-hover:text-primary-600 transition-colors">
                       {person.name}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{person.neighborhood}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{person.neighborhood || 'Bairro não inf.'}</p>
                   </div>
                 </div>
                 <button className="mt-2 sm:mt-0 p-2 text-primary-600 bg-primary-50 dark:bg-primary-900/20 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
@@ -359,7 +431,7 @@ const Dashboard: React.FC = () => {
         onClose={() => setSelectedBirthday(null)}
         title="Enviar Felicitações"
         footer={
-          <button 
+          <button
             onClick={() => setSelectedBirthday(null)}
             className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
@@ -384,7 +456,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-sm text-slate-600 dark:text-slate-300">"Parabéns {selectedBirthday.name.split(' ')[0]}! Que este novo ciclo traga muitas conquistas..."</p>
                 </button>
                 <button className="p-3 text-left border border-gray-200 dark:border-slate-700 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-all">
-                  <p className="text-sm text-slate-600 dark:text-slate-300">"Feliz aniversário! O Gabinete Wederson Lopes deseja muita saúde..."</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">"Feliz aniversário! O Gabinete deseja muita saúde..."</p>
                 </button>
               </div>
 

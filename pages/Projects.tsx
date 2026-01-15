@@ -1,12 +1,14 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { 
-  FileText, 
-  Plus, 
-  Search, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Download, 
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  FileText,
+  Plus,
+  Search,
+  Eye,
+  Edit,
+  Trash2,
+  Download,
   Filter,
   File,
   AlertTriangle,
@@ -16,170 +18,219 @@ import {
   X,
   Paperclip,
   UploadCloud,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react';
 import Modal from '../components/Modal';
-import * as XLSX from 'xlsx';
-import Papa from 'papaparse';
+import ImportLegislativeModal from '../components/ImportLegislativeModal';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+// Interface matching Supabase 'legislative_matters' table + UI helpers
 interface Project {
   id: number;
-  type: string;
+  cabinet_id: string;
+  type: string; // Mapped to 'type_description'
   number: string;
   year: string;
-  author: string;
-  summary: string;
-  attachments: number;
-  status: 'Finalizado' | 'Em Tramitação' | 'Arquivado' | 'Importado';
-  deadline?: string; // Data limite para tramitação
-  originalUrl?: string; // Link para o PDF original do sistema antigo
+  author: string; // Mapped to 'authors'
+  summary: string; // Mapped to 'description'
+  attachments: number; // Placeholder, or count from storage
+  status: string;
+  deadline?: string; // Optional, only if table has it (not in current schema, keeping internal)
+  originalUrl?: string; // Mapped to 'pdf_url'
+  created_at?: string;
 }
 
-// Helper para datas dinâmicas no mock
-const today = new Date();
-const nextWeek = new Date(); nextWeek.setDate(today.getDate() + 5);
-const pastDate = new Date(); pastDate.setDate(today.getDate() - 15);
-
-const initialProjects: Project[] = [
-  {
-    id: 1,
-    type: 'Projeto de Decreto Legislativo',
-    number: 'SN',
-    year: '2024',
-    author: 'Wederson Lopes',
-    summary: 'Cidadão Benemérito Sebastião',
-    attachments: 1,
-    status: 'Finalizado'
-  },
-  {
-    id: 2,
-    type: 'Projeto de Decreto Legislativo',
-    number: '695',
-    year: '2015',
-    author: 'Wederson Lopes',
-    summary: 'Título de Cidadania ao Pastor Francisco Jacob de Oliveira Filho',
-    attachments: 1,
-    status: 'Finalizado'
-  },
-  {
-    id: 3,
-    type: 'Projeto de Decreto Legislativo',
-    number: '963',
-    year: '2025',
-    author: 'Wederson Lopes',
-    summary: 'Título de Cidadania ao senhor Márcio Cândido da Silva',
-    attachments: 0,
-    status: 'Em Tramitação',
-    deadline: nextWeek.toISOString().split('T')[0] // Vence em breve
-  },
-  {
-    id: 4,
-    type: 'Projeto de Decreto Legislativo',
-    number: '57',
-    year: '2024',
-    author: 'Wederson Lopes',
-    summary: 'Cidadão Benemérito Sebastião Donizete Ferreira',
-    attachments: 1,
-    status: 'Finalizado'
-  },
-  {
-    id: 5,
-    type: 'Projeto de Lei',
-    number: '721',
-    year: '2016',
-    author: 'Wederson Lopes',
-    summary: 'Dispõe sobre a obrigatoriedade de instalação de brinquedos adaptados',
-    attachments: 1,
-    status: 'Em Tramitação',
-    deadline: pastDate.toISOString().split('T')[0] // Atrasado
-  }
-];
-
 const Projects: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const { profile } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     status: 'Todas',
     type: 'Todos',
     year: 'Todos',
     search: ''
   });
-  
-  // Modals
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  // File Upload Ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // State
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // Form State
   const [formData, setFormData] = useState({
     type: 'Projeto de Lei',
     number: '',
     year: new Date().getFullYear().toString(),
-    author: 'Wederson Lopes',
+    author: 'Wederson Lopes', // Default author
     summary: '',
-    status: 'Em Tramitação' as const,
+    status: 'Em Tramitação',
     deadline: '',
-    files: [] as File[]
+    files: [] as File[],
+    pdf_url: ''
   });
 
+  // --- Data Fetching ---
+  const fetchProjects = async () => {
+    if (!profile?.cabinet_id) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('legislative_matters')
+        .select('*')
+        .eq('cabinet_id', profile.cabinet_id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        // Transform DB data to UI Project interface
+        const loadedProjects: Project[] = data.map((item: any) => ({
+          id: item.id,
+          cabinet_id: item.cabinet_id,
+          type: item.type_description || item.type || 'Outros',
+          number: item.number?.toString() || 'SN',
+          year: item.year?.toString() || new Date().getFullYear().toString(),
+          author: item.authors || 'Gabinete',
+          summary: item.description || '',
+          attachments: item.pdf_url ? 1 : 0,
+          status: item.status || 'Em Tramitação',
+          originalUrl: item.pdf_url,
+          created_at: item.created_at,
+          deadline: '' // Not in schema yet
+        }));
+        setProjects(loadedProjects);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar matérias:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, [profile]);
+
+  // --- Filtering ---
   const filteredProjects = useMemo(() => {
     return projects.filter(project => {
       const matchesStatus = filters.status === 'Todas' || project.status === filters.status;
       const matchesType = filters.type === 'Todos' || project.type === filters.type;
       const matchesYear = filters.year === 'Todos' || project.year === filters.year;
-      const matchesSearch = 
-        project.summary.toLowerCase().includes(filters.search.toLowerCase()) ||
-        project.number.toLowerCase().includes(filters.search.toLowerCase()) ||
-        project.type.toLowerCase().includes(filters.search.toLowerCase());
+      const matchesSearch =
+        (project.summary || '').toLowerCase().includes(filters.search.toLowerCase()) ||
+        (project.number || '').toLowerCase().includes(filters.search.toLowerCase()) ||
+        (project.type || '').toLowerCase().includes(filters.search.toLowerCase());
 
       return matchesStatus && matchesType && matchesYear && matchesSearch;
     });
   }, [projects, filters]);
 
-  const getDeadlineAlert = (deadline?: string, status?: string) => {
-    if (!deadline || status === 'Finalizado' || status === 'Arquivado' || status === 'Importado') return null;
-    
-    const todayDate = new Date();
-    todayDate.setHours(0,0,0,0);
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - todayDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+  const currentProjects = filteredProjects.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
-    if (diffDays < 0) {
-      return { 
-        type: 'overdue', 
-        label: `Atrasado ${Math.abs(diffDays)} dias`, 
-        className: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' 
-      };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  // Dynamic Filters Choices
+  const availableTypes = Array.from(new Set(projects.map(p => p.type))).sort();
+  const availableYears = Array.from(new Set(projects.map(p => p.year))).sort((a, b) => parseInt(b) - parseInt(a));
+
+  // --- CRUD Operations ---
+
+  const handleSaveProject = async () => {
+    if (!formData.number || !formData.summary || !profile?.cabinet_id) return;
+
+    // TODO: Implement file upload to Supabase Storage if files are present
+    // For now, we will handle text data.
+
+    // Construct payload for legislative_matters table
+    const payload = {
+      cabinet_id: profile.cabinet_id,
+      type_description: formData.type,
+      type_acronym: formData.type.substring(0, 3).toUpperCase(), // Simple acronym generation
+      number: parseInt(formData.number) || 0,
+      year: parseInt(formData.year) || new Date().getFullYear(),
+      authors: formData.author,
+      description: formData.summary,
+      status: formData.status,
+      // pdf_url: ... (would come from storage upload)
+    };
+
+    try {
+      if (isEditing && selectedProject) {
+        const { error } = await supabase
+          .from('legislative_matters')
+          .update(payload)
+          .eq('id', selectedProject.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('legislative_matters')
+          .insert([payload]);
+
+        if (error) throw error;
+      }
+
+      await fetchProjects();
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Erro ao salvar matéria:', error);
+      alert('Erro ao salvar matéria. Verifique o console.');
     }
-    if (diffDays <= 7) {
-      return { 
-        type: 'urgent', 
-        label: `Vence em ${diffDays} dias`, 
-        className: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800' 
-      };
-    }
-    return null;
   };
+
+  const handleDeleteConfirm = async () => {
+    if (selectedProject) {
+      try {
+        const { error } = await supabase
+          .from('legislative_matters')
+          .delete()
+          .eq('id', selectedProject.id);
+
+        if (error) throw error;
+
+        await fetchProjects();
+        setIsDeleteOpen(false);
+        setSelectedProject(null);
+      } catch (error) {
+        console.error('Erro ao excluir:', error);
+        alert('Erro ao excluir matéria.');
+      }
+    }
+  };
+
+  // --- UI Handlers ---
 
   const openNewProject = () => {
     setIsEditing(false);
     setSelectedProject(null);
     setFormData({
-       type: 'Projeto de Lei',
-       number: '',
-       year: new Date().getFullYear().toString(),
-       author: 'Wederson Lopes',
-       summary: '',
-       status: 'Em Tramitação',
-       deadline: '',
-       files: []
+      type: 'Projeto de Lei',
+      number: '',
+      year: new Date().getFullYear().toString(),
+      author: profile?.name || 'Gabinete',
+      summary: '',
+      status: 'Em Tramitação',
+      deadline: '',
+      files: [],
+      pdf_url: ''
     });
     setIsModalOpen(true);
   };
@@ -188,14 +239,15 @@ const Projects: React.FC = () => {
     setIsEditing(true);
     setSelectedProject(project);
     setFormData({
-       type: project.type,
-       number: project.number,
-       year: project.year,
-       author: project.author,
-       summary: project.summary,
-       status: project.status as any,
-       deadline: project.deadline || '',
-       files: [] // In a real app, this would load existing files
+      type: project.type,
+      number: project.number,
+      year: project.year,
+      author: project.author,
+      summary: project.summary,
+      status: project.status,
+      deadline: project.deadline || '',
+      files: [],
+      pdf_url: project.originalUrl || ''
     });
     setIsModalOpen(true);
   };
@@ -205,205 +257,31 @@ const Projects: React.FC = () => {
     setIsDeleteOpen(true);
   };
 
-  const openViewProject = (project: Project) => {
-    setSelectedProject(project);
-    setIsViewOpen(true);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      setFormData(prev => ({
-        ...prev,
-        files: [...prev.files, ...newFiles]
-      }));
-    }
-  };
-
-  // --- Lógica de Importação (JSON, CSV, XLSX) ---
-  const handleImportClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  // --- Lógica de Exportação (XLSX) ---
-  const handleExportData = () => {
-    const exportData = filteredProjects.map(p => ({
-      "ID": p.id,
-      "Tipo": p.type,
-      "Número": p.number,
-      "Ano": p.year,
-      "Autor": p.author,
-      "Ementa": p.summary,
-      "Status": p.status,
-      "Anexos": p.attachments,
-      "Link Original": p.originalUrl || ''
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Projetos Filtrados");
-    XLSX.writeFile(wb, `projetos_export_${new Date().toISOString().slice(0,10)}.xlsx`);
-  };
-
-  // Processa dados brutos e normaliza para o formato do sistema
-  const processImportData = (data: any[]) => {
-    return data.map((item: any) => {
-      // Tenta encontrar campos pelo nome do CSV/JSON ou variações comuns
-      const id = item.ID || item.id || Date.now() + Math.random();
-      const type = item['Tipo de Matéria Legislativa/Descrição'] || item.tipo__descricao || item.Tipo || 'Outros';
-      const number = item['Número'] || item.numero || item.Numero || 'SN';
-      const year = item['Ano'] || item.ano || new Date().getFullYear().toString();
-      const author = item['Autorias'] || item.autoria || item.Autor || 'Desconhecido';
-      const summary = item['Ementa'] || item.ementa || 'Sem descrição';
-      const originalUrl = item['Texto Original'] || item.texto_original || '';
-
-      return {
-        id: typeof id === 'number' ? id : parseInt(id) || Date.now(),
-        type,
-        number: String(number),
-        year: String(year),
-        author,
-        summary,
-        attachments: originalUrl ? 1 : 0,
-        status: 'Importado',
-        originalUrl
-      } as Project;
-    });
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-
-    if (fileExt === 'json') {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          const data = JSON.parse(content);
-          if (data.results && Array.isArray(data.results)) {
-            const newProjects = processImportData(data.results);
-            setProjects(prev => [...newProjects, ...prev]);
-            alert(`${newProjects.length} projetos importados via JSON!`);
-          } else {
-            alert('JSON inválido. Esperado formato { results: [...] }');
-          }
-        } catch (err) {
-          alert('Erro ao ler JSON.');
-        }
-      };
-      reader.readAsText(file);
-    } else if (fileExt === 'csv') {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (results.data && results.data.length > 0) {
-            const newProjects = processImportData(results.data);
-            setProjects(prev => [...newProjects, ...prev]);
-            alert(`${newProjects.length} projetos importados via CSV!`);
-          }
-        },
-        error: () => alert('Erro ao ler CSV.')
-      });
-    } else if (fileExt === 'xlsx' || fileExt === 'xls') {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet);
-        
-        if (jsonData && jsonData.length > 0) {
-          const newProjects = processImportData(jsonData);
-          setProjects(prev => [...newProjects, ...prev]);
-          alert(`${newProjects.length} projetos importados via Excel!`);
-        }
-      };
-      reader.readAsBinaryString(file);
-    } else {
-      alert('Formato não suportado. Use JSON, CSV ou XLSX.');
-    }
-    
-    event.target.value = '';
-  };
-
-  const removeFile = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      files: prev.files.filter((_, i) => i !== index)
-    }));
-  };
-
-  const handleSaveProject = () => {
-    if (!formData.number || !formData.summary) return;
-
-    const baseAttachments = (isEditing && selectedProject) ? selectedProject.attachments : 0;
-    const totalAttachments = baseAttachments + formData.files.length;
-
-    const projectData = {
-        type: formData.type,
-        number: formData.number,
-        year: formData.year,
-        author: formData.author,
-        summary: formData.summary,
-        status: formData.status,
-        deadline: formData.deadline,
-        attachments: totalAttachments
-    };
-
-    if (isEditing && selectedProject) {
-      const updatedProjects = projects.map(p => 
-        p.id === selectedProject.id 
-          ? { ...p, ...projectData } 
-          : p
-      );
-      setProjects(updatedProjects);
-    } else {
-      const projectToAdd: Project = {
-        id: projects.length + 1,
-        ...projectData,
-      };
-      setProjects([projectToAdd, ...projects]);
-    }
-
-    setIsModalOpen(false);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (selectedProject) {
-      setProjects(projects.filter(p => p.id !== selectedProject.id));
-      setIsDeleteOpen(false);
-      setSelectedProject(null);
-    }
-  };
-
   const handleDownload = (project: Project) => {
     if (project.originalUrl) {
       window.open(project.originalUrl, '_blank');
-      return;
+    } else {
+      alert('Nenhum documento anexado ou link disponível.');
     }
-    // Lógica dummy de download
-    alert(`Baixando documento ${project.number}/${project.year}...`);
+  };
+
+  // --- File Handlers (UI Only for now) ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFormData(prev => ({ ...prev, files: [...prev.files, ...Array.from(e.target.files || [])] }));
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFormData(prev => ({ ...prev, files: prev.files.filter((_, i) => i !== index) }));
   };
 
   const getStatusStyles = (status: string) => {
     switch (status) {
-      case 'Finalizado':
-        return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
-      case 'Em Tramitação':
-        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800';
-      case 'Arquivado':
-        return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
-      case 'Importado':
-        return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Finalizado': return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
+      case 'Em Tramitação': return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800';
+      case 'Arquivado': return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -417,36 +295,24 @@ const Projects: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Matérias Legislativas</h1>
         </div>
-        
+
         <div className="flex gap-2">
-          {/* Botão de Importação */}
-          <input 
-            type="file" 
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".json,.csv,.xlsx,.xls"
-            className="hidden"
-          />
-          <button 
-            onClick={handleImportClick}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all"
-            title="Importar dados (JSON, CSV, Excel)"
+          <button
+            onClick={fetchProjects}
+            className="bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            title="Atualizar"
           >
-            <UploadCloud className="w-5 h-5" />
-            <span className="hidden sm:inline">Importar</span>
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
-          {/* Botão de Exportação */}
-          <button 
-            onClick={handleExportData}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
-            title="Exportar dados filtrados (Excel)"
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5"
           >
-            <FileSpreadsheet className="w-5 h-5" />
-            <span className="hidden sm:inline">Exportar</span>
+            <UploadCloud className="w-5 h-5" /> <span className="hidden sm:inline">Importar</span>
           </button>
 
-          <button 
+          <button
             onClick={openNewProject}
             className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-lg shadow-primary-500/20 transition-all"
           >
@@ -460,187 +326,174 @@ const Projects: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Situação</label>
-            <select 
-              className="w-full bg-slate-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent text-slate-700 dark:text-slate-200 outline-none py-2 px-3"
-              value={filters.status}
-              onChange={(e) => setFilters({...filters, status: e.target.value})}
-            >
-              <option>Todas</option>
-              <option>Finalizado</option>
-              <option>Em Tramitação</option>
-              <option>Arquivado</option>
-              <option>Importado</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Tipo</label>
-            <select 
-              className="w-full bg-slate-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent text-slate-700 dark:text-slate-200 outline-none py-2 px-3"
-              value={filters.type}
-              onChange={(e) => setFilters({...filters, type: e.target.value})}
-            >
-              <option>Todos</option>
-              <option>Projeto de Decreto Legislativo</option>
-              <option>Projeto de Lei</option>
-              <option>Requerimento</option>
-              <option>Indicação</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Ano</label>
-            <select 
-              className="w-full bg-slate-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent text-slate-700 dark:text-slate-200 outline-none py-2 px-3"
-              value={filters.year}
-              onChange={(e) => setFilters({...filters, year: e.target.value})}
-            >
-              <option>Todos</option>
-              <option>2025</option>
-              <option>2024</option>
-              <option>2023</option>
-              <option>2016</option>
-              <option>2015</option>
-            </select>
-          </div>
-          <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Buscar</label>
             <div className="relative">
-              <input 
-                className="w-full bg-slate-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 rounded-lg text-sm pl-10 py-2 px-3 focus:ring-2 focus:ring-primary-500 focus:border-transparent text-slate-700 dark:text-slate-200 outline-none" 
-                placeholder="Buscar matéria..." 
+              <input
+                className="w-full bg-slate-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 rounded-lg text-sm pl-10 py-2 px-3 focus:ring-2 focus:ring-primary-500 focus:border-transparent text-slate-700 dark:text-slate-200 outline-none"
+                placeholder="Busque por ementa, número..."
                 type="text"
                 value={filters.search}
-                onChange={(e) => setFilters({...filters, search: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               />
               <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
             </div>
           </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Tipo</label>
+            <select
+              className="w-full bg-slate-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none py-2 px-3"
+              value={filters.type}
+              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+            >
+              <option value="Todos">Todos</option>
+              {availableTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          </div>
+          {/* Add more filters if needed */}
         </div>
-      </div>
-
-      {/* List Header */}
-      <div className="flex justify-between items-end">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Lista de Matérias</h2>
-        <button className="text-sm text-primary-600 hover:text-primary-700 font-medium hover:underline">
-          Mostrar mais antigos
-        </button>
       </div>
 
       {/* Projects List */}
       <div className="space-y-4">
-        {filteredProjects.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
+            <p className="text-slate-500">Carregando...</p>
+          </div>
+        ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-200 dark:border-slate-700">
-            <File className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-slate-900 dark:text-white">Nenhum projeto encontrado</h3>
-            <p className="text-slate-500 dark:text-slate-400">Tente ajustar seus filtros de busca ou importar dados.</p>
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <h3 className="text-lg font-medium text-slate-900 dark:text-white">Nenhuma matéria encontrada</h3>
+            <p className="text-slate-500 dark:text-slate-400">Tente ajustar seus filtros ou cadastrar um novo item.</p>
           </div>
         ) : (
-          filteredProjects.map((project) => {
-            const alert = getDeadlineAlert(project.deadline, project.status);
-            return (
-              <div 
-                key={project.id} 
-                className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-5 hover:border-primary-300 dark:hover:border-primary-700 transition-colors group"
-              >
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="font-bold text-slate-800 dark:text-white text-base">
-                        {project.type} - Nº {project.number}/{project.year}
-                      </h3>
-                      {alert && (
-                        <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${alert.className}`}>
-                          <Clock className="w-3.5 h-3.5" />
-                          {alert.label}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                      <p><span className="font-medium text-slate-900 dark:text-slate-200">Autor:</span> {project.author}</p>
-                      <p><span className="font-medium text-slate-900 dark:text-slate-200">Ementa:</span> {project.summary}</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> Anexos: {project.attachments > 0 ? `${project.attachments} arquivo(s)` : 'Nenhum'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0 justify-between sm:justify-end">
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusStyles(project.status)}`}>
+          currentProjects.map((project) => (
+            <div
+              key={project.id}
+              className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-5 hover:border-primary-300 dark:hover:border-primary-700 transition-colors group"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                      {project.type} - Nº {project.number}/{project.year}
+                    </h3>
+                    <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getStatusStyles(project.status)}`}>
                       {project.status}
                     </span>
-                    
-                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900/50 p-1 rounded-lg border border-slate-100 dark:border-slate-700">
-                      <button 
-                        onClick={() => handleDownload(project)}
-                        className="p-1.5 text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors flex items-center gap-1 text-xs font-medium" 
-                        title={project.originalUrl ? "Baixar Original" : "Baixar Final"}
-                      >
-                        <Download className="w-4 h-4" />
-                        <span className="hidden sm:inline">PDF</span>
-                      </button>
-                      <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                      <button 
-                        onClick={() => openViewProject(project)}
-                        className="p-1.5 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors" 
-                        title="Visualizar"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => openEditProject(project)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" 
-                        title="Editar"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => openDeleteProject(project)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 transition-colors" 
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
+                    <p><span className="font-medium text-slate-900 dark:text-slate-200">Autor:</span> {project.author}</p>
+                    <p className="line-clamp-2"><span className="font-medium text-slate-900 dark:text-slate-200">Ementa:</span> {project.summary}</p>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownload(project)}
+                    className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    title="Baixar ou Visualizar Link"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => openEditProject(project)}
+                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Edit className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => openDeleteProject(project)}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
-      
-      {/* ... (Restante dos modais mantidos, apenas o file input e handler foram alterados no topo) */}
-      
-      {/* Modal Novo/Editar Projeto */}
+
+      {/* Pagination Controls */}
+      {!loading && filteredProjects.length > 0 && (
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-slate-700">
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            Mostrando <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> até <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredProjects.length)}</span> de <span className="font-medium">{filteredProjects.length}</span> resultados
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                // Simple logic to show window of pages, can be improved for many pages
+                let pNum = i + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  pNum = currentPage - 2 + i;
+                  if (pNum > totalPages) pNum = totalPages - (4 - i);
+                }
+
+                return (
+                  <button
+                    key={pNum}
+                    onClick={() => setCurrentPage(pNum)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pNum
+                      ? 'bg-primary-600 text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      }`}
+                  >
+                    {pNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo/Editar */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={isEditing ? "Editar Matéria" : "Nova Matéria Legislativa"}
         footer={
           <>
-            <button 
+            <button
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleSaveProject}
               className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm transition-colors"
             >
-              {isEditing ? "Salvar Alterações" : "Salvar Matéria"}
+              {isEditing ? "Salvar Alterações" : "Salvar"}
             </button>
           </>
         }
       >
         <div className="space-y-4">
-           {/* Form content remains the same */}
-           <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo</label>
-              <select 
+              <select
                 value={formData.type}
-                onChange={(e) => setFormData({...formData, type: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
               >
                 <option>Projeto de Lei</option>
@@ -648,15 +501,15 @@ const Projects: React.FC = () => {
                 <option>Requerimento</option>
                 <option>Moção</option>
                 <option>Indicação</option>
+                <option>Outros</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Número</label>
-              <input 
-                type="text"
+              <input
+                type="number"
                 value={formData.number}
-                onChange={(e) => setFormData({...formData, number: e.target.value})}
-                placeholder="Ex: 123"
+                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
               />
             </div>
@@ -664,148 +517,80 @@ const Projects: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ano</label>
-              <input 
-                type="text"
+              <input
+                type="number"
                 value={formData.year}
-                onChange={(e) => setFormData({...formData, year: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, year: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
-              <select 
+              <select
                 value={formData.status}
-                onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
               >
-                <option value="Em Tramitação">Em Tramitação</option>
-                <option value="Finalizado">Finalizado</option>
-                <option value="Arquivado">Arquivado</option>
-                <option value="Importado">Importado</option>
+                <option>Em Tramitação</option>
+                <option>Finalizado</option>
+                <option>Arquivado</option>
               </select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Autor</label>
-              <input 
-                type="text"
-                value={formData.author}
-                onChange={(e) => setFormData({...formData, author: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Prazo / Vencimento</label>
-              <div className="relative">
-                <input 
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) => setFormData({...formData, deadline: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
-                />
-                <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ementa / Resumo</label>
-            <textarea 
-              rows={4}
-              value={formData.summary}
-              onChange={(e) => setFormData({...formData, summary: e.target.value})}
-              placeholder="Descreva o resumo da matéria..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Autor(es)</label>
+            <input
+              type="text"
+              value={formData.author}
+              onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Anexos (PDF, DOC)</label>
-            <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg p-4 text-center hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors relative group">
-              <input 
-                type="file" 
-                multiple 
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                accept=".pdf,.doc,.docx"
-              />
-              <div className="flex flex-col items-center gap-1 pointer-events-none">
-                <Upload className="w-8 h-8 text-slate-400 group-hover:text-primary-500 transition-colors" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Clique ou arraste arquivos aqui</p>
-              </div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ementa / Descrição</label>
+            <textarea
+              rows={3}
+              value={formData.summary}
+              onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+            />
+          </div>
+
+          {/* Dummy File Upload for now */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Anexos</label>
+            <div className="border border-dashed border-gray-300 p-4 rounded text-center text-sm text-gray-500">
+              Upload de arquivos será habilitado em breve.
             </div>
-            
-            {formData.files.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {formData.files.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-slate-700/50 rounded border border-gray-200 dark:border-slate-700">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <Paperclip className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{file.name}</span>
-                    </div>
-                    <button 
-                      onClick={() => removeFile(index)}
-                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-500 hover:text-red-500 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </Modal>
 
-      {/* Delete Modal - Kept same */}
+      {/* Delete Modal */}
       <Modal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         title="Excluir Matéria"
         footer={
           <>
-            <button 
-              onClick={() => setIsDeleteOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={handleDeleteConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              Sim, Excluir
-            </button>
+            <button onClick={() => setIsDeleteOpen(false)} className="px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 rounded-lg">Cancelar</button>
+            <button onClick={handleDeleteConfirm} className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg">Excluir</button>
           </>
         }
       >
-        <div className="flex flex-col items-center text-center p-4">
-          <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mb-4">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Tem certeza?</h3>
-          <p className="text-slate-500 dark:text-slate-400 mb-1">
-            Você está prestes a excluir a matéria:
-          </p>
-          <p className="font-medium text-slate-800 dark:text-white bg-gray-50 dark:bg-slate-700 px-3 py-1 rounded mb-4">
-            {selectedProject?.type} Nº {selectedProject?.number}/{selectedProject?.year}
-          </p>
-          <p className="text-sm text-slate-500">
-            Esta ação removerá a matéria permanentemente.
-          </p>
-        </div>
+        <p className="text-slate-600 text-center">Tem certeza que deseja excluir esta matéria?</p>
       </Modal>
 
-      {/* View Modal - Kept same */}
-       <Modal
+
+      {/* View Modal */}
+      <Modal
         isOpen={isViewOpen}
         onClose={() => setIsViewOpen(false)}
         title="Detalhes da Matéria"
         footer={
-          <button 
+          <button
             onClick={() => setIsViewOpen(false)}
             className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
@@ -816,15 +601,15 @@ const Projects: React.FC = () => {
         {selectedProject && (
           <div className="space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-700">
-               <div>
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{selectedProject.type}</span>
-                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Nº {selectedProject.number}/{selectedProject.year}</h2>
-               </div>
-               <span className={`px-3 py-1 text-sm font-bold rounded-full border ${getStatusStyles(selectedProject.status)}`}>
-                 {selectedProject.status}
-               </span>
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{selectedProject.type}</span>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Nº {selectedProject.number}/{selectedProject.year}</h2>
+              </div>
+              <span className={`px-3 py-1 text-sm font-bold rounded-full border ${getStatusStyles(selectedProject.status)}`}>
+                {selectedProject.status}
+              </span>
             </div>
-            
+
             {selectedProject.deadline && selectedProject.status === 'Em Tramitação' && (
               <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg border border-orange-100 dark:border-orange-800 flex items-center gap-3">
                 <Clock className="w-5 h-5 text-orange-600" />
@@ -836,15 +621,15 @@ const Projects: React.FC = () => {
             )}
 
             <div className="bg-gray-50 dark:bg-slate-700/30 p-4 rounded-lg border border-gray-100 dark:border-slate-700">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Autor</h4>
-                <p className="text-slate-700 dark:text-slate-200">{selectedProject.author}</p>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Autor</h4>
+              <p className="text-slate-700 dark:text-slate-200">{selectedProject.author}</p>
             </div>
 
             <div className="bg-gray-50 dark:bg-slate-700/30 p-4 rounded-lg border border-gray-100 dark:border-slate-700">
-               <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Ementa</h4>
-               <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                 {selectedProject.summary}
-               </p>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Ementa</h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {selectedProject.summary}
+              </p>
             </div>
 
             {selectedProject.originalUrl && (
@@ -855,13 +640,23 @@ const Projects: React.FC = () => {
                 </a>
               </div>
             )}
-            
-             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                <button onClick={() => { setIsViewOpen(false); openEditProject(selectedProject); }} className="text-blue-600 hover:underline text-sm font-medium">Editar Matéria</button>
-             </div>
+
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+              <button onClick={() => { setIsViewOpen(false); if (selectedProject) openEditProject(selectedProject); }} className="text-blue-600 hover:underline text-sm font-medium">Editar Matéria</button>
+            </div>
           </div>
         )}
       </Modal>
+
+      {/* Import Modal */}
+      <ImportLegislativeModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          setIsImportModalOpen(false);
+          fetchProjects();
+        }}
+      />
 
     </div>
   );

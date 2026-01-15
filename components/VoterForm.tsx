@@ -1,153 +1,273 @@
+
 import React, { useState, useEffect } from 'react';
-import { Voter } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { User, Phone, MapPin, Mail, Calendar, Hash, Tag, UserCheck } from 'lucide-react';
 
 interface VoterFormProps {
-    initialData?: Voter | null;
-    onSave: (data: Partial<Voter>) => Promise<void>;
+    voter?: any;
+    onSuccess: () => void;
     onCancel: () => void;
 }
 
-const VoterForm: React.FC<VoterFormProps> = ({ initialData, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<Partial<Voter>>({
+export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps) {
+    const { profile } = useAuth();
+    const [loading, setLoading] = useState(false);
+    const [formData, setFormData] = useState({
         name: '',
         cpf: '',
         phone: '',
+        email: '',
         address: '',
-        category: 'Apoiador',
-        status: 'active',
-        tags: []
+        neighborhood: '',
+        city: 'Anápolis', // Default para facilitar
+        birth_date: '',
+        category: 'Indeciso',
+        indicated_by: '',
+        tags: '' // Gerenciar como string comma-separated na UI por simplicidade inicial
     });
-    const [loading, setLoading] = useState(false);
-    const [tagInput, setTagInput] = useState('');
 
     useEffect(() => {
-        if (initialData) {
-            setFormData(initialData);
+        if (voter) {
+            setFormData({
+                name: voter.name || '',
+                cpf: voter.cpf || '',
+                phone: voter.phone || '',
+                email: voter.email || '',
+                address: voter.address || '',
+                neighborhood: voter.neighborhood || '',
+                city: voter.city || '',
+                birth_date: voter.birth_date || '',
+                category: voter.category || 'Indeciso',
+                indicated_by: voter.indicated_by || '',
+                tags: voter.tags ? voter.tags.join(', ') : ''
+            });
         }
-    }, [initialData]);
+    }, [voter]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!profile?.cabinet_id) return;
         setLoading(true);
-        await onSave(formData);
-        setLoading(false);
-    };
 
-    const handleAddTag = () => {
-        if (tagInput && !formData.tags?.includes(tagInput)) {
-            setFormData(prev => ({ ...prev, tags: [...(prev.tags || []), tagInput] }));
-            setTagInput('');
+        try {
+            const payload = {
+                cabinet_id: profile.cabinet_id,
+                name: formData.name,
+                cpf: formData.cpf.replace(/\D/g, ''),
+                phone: formData.phone,
+                email: formData.email,
+                address: formData.address,
+                neighborhood: formData.neighborhood,
+                city: formData.city,
+                birth_date: formData.birth_date || null,
+                category: formData.category,
+                indicated_by: formData.indicated_by,
+                tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
+                updated_at: new Date().toISOString()
+            };
+
+            let error;
+            if (voter?.id) {
+                // Update
+                const { error: updateError } = await supabase
+                    .from('voters')
+                    .update(payload)
+                    .eq('id', voter.id);
+                error = updateError;
+            } else {
+                // Insert
+                const { error: insertError } = await supabase
+                    .from('voters')
+                    .insert({
+                        ...payload,
+                        status: 'active',
+                        source: 'Manual'
+                    });
+                error = insertError;
+            }
+
+            if (error) throw error;
+            onSuccess();
+        } catch (err: any) {
+            console.error('Erro ao salvar eleitor:', err);
+            // TODO: Mostrar erro na UI
+            alert('Erro ao salvar: ' + err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const removeTag = (tag: string) => {
-        setFormData(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tag) }));
-    };
-
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 p-1">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome Completo</label>
-                <input
-                    type="text"
-                    value={formData.name || ''}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-gray-50 bg-white"
-                    required
-                />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Dados Pessoais */}
+                <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
+                    <div className="relative">
+                        <User className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            name="name"
+                            required
+                            value={formData.name}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Nome do eleitor"
+                        />
+                    </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">CPF</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                    <div className="relative">
+                        <Hash className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            name="cpf"
+                            value={formData.cpf}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="000.000.000-00"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                    <div className="relative">
+                        <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            type="date"
+                            name="birth_date"
+                            value={formData.birth_date}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                </div>
+
+                {/* Contato */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone / WhatsApp</label>
+                    <div className="relative">
+                        <Phone className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="(62) 99999-9999"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="email@exemplo.com"
+                        />
+                    </div>
+                </div>
+
+                {/* Endereço */}
+                <div className="col-span-2 md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+                    <div className="relative">
+                        <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            name="address"
+                            value={formData.address}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Rua, Número, Qd, Lt"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
                     <input
-                        type="text"
-                        value={formData.cpf || ''}
-                        onChange={e => setFormData({ ...formData, cpf: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-white"
+                        name="neighborhood"
+                        value={formData.neighborhood}
+                        onChange={handleChange}
+                        className="w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Nome do Bairro"
                     />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Telefone</label>
-                    <input
-                        type="text"
-                        value={formData.phone || ''}
-                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-white"
-                        required
-                    />
-                </div>
-            </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Endereço</label>
-                <input
-                    type="text"
-                    value={formData.address || ''}
-                    onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-white"
-                    required
-                />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+                {/* Classificação */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Categoria</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                     <select
-                        value={formData.category || 'Apoiador'}
-                        onChange={e => setFormData({ ...formData, category: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-white"
+                        name="category"
+                        value={formData.category}
+                        onChange={handleChange}
+                        className="w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                        <option value="Liderança">Liderança</option>
-                        <option value="Apoiador">Apoiador</option>
-                        <option value="Voluntário">Voluntário</option>
                         <option value="Indeciso">Indeciso</option>
+                        <option value="Apoiador">Apoiador</option>
+                        <option value="Liderança">Liderança</option>
+                        <option value="Voluntário">Voluntário</option>
+                        <option value="Oposição">Oposição</option>
                     </select>
                 </div>
+
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-                    <select
-                        value={formData.status || 'active'}
-                        onChange={e => setFormData({ ...formData, status: e.target.value as any })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-white"
-                    >
-                        <option value="active">Ativo</option>
-                        <option value="inactive">Inativo</option>
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Indicado Por (Captador)</label>
+                    <div className="relative">
+                        <UserCheck className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            name="indicated_by"
+                            value={formData.indicated_by}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Quem indicou?"
+                        />
+                    </div>
+                </div>
+
+                <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags (Interesses)</label>
+                    <div className="relative">
+                        <Tag className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            name="tags"
+                            value={formData.tags}
+                            onChange={handleChange}
+                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Saúde, Educação, Bairro X (separar por vírgula)"
+                        />
+                    </div>
                 </div>
             </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tags / Interesses</label>
-                <div className="flex gap-2 mb-2">
-                    <input
-                        type="text"
-                        value={tagInput}
-                        onChange={e => setTagInput(e.target.value)}
-                        className="flex-1 rounded-md border-gray-300 dark:border-slate-600 dark:bg-slate-800 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 bg-white"
-                        placeholder="Ex: Saúde, Educação..."
-                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                    />
-                    <button type="button" onClick={handleAddTag} className="bg-slate-200 px-3 rounded-md text-sm font-bold">+</button>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                    {formData.tags?.map(tag => (
-                        <span key={tag} className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs flex items-center gap-1">
-                            {tag}
-                            <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-500 font-bold">&times;</button>
-                        </span>
-                    ))}
-                </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
-                <button type="button" onClick={onCancel} className="px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50">Cancelar</button>
-                <button type="submit" disabled={loading} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 disabled:opacity-50">
-                    {loading ? 'Salvando...' : 'Salvar'}
+            <div className="flex justify-end gap-3 pt-4 border-t mt-4">
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                    {loading ? 'Salvando...' : 'Salvar Eleitor'}
                 </button>
             </div>
         </form>
     );
-};
-
-export default VoterForm;
+}
