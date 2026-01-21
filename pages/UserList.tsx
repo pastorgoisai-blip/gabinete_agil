@@ -11,10 +11,47 @@ import {
 } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { Send, Copy, Check, X } from 'lucide-react';
 
 const UserList: React.FC = () => {
   const navigate = useNavigate();
   const { profile, loading } = useAuth();
+  const [showInviteModal, setShowInviteModal] = React.useState(false);
+  const [inviteEmail, setInviteEmail] = React.useState('');
+  const [inviteRole, setInviteRole] = React.useState('staff');
+  const [inviteLoading, setInviteLoading] = React.useState(false);
+  const [generatedLink, setGeneratedLink] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCreateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteLoading(true);
+    setGeneratedLink(null);
+    try {
+      const { data: token, error } = await supabase.rpc('create_invite_token', {
+        target_email: inviteEmail,
+        target_role: inviteRole
+      });
+
+      if (error) throw error;
+
+      const link = `${window.location.origin}/#/invite/${token}`;
+      setGeneratedLink(link);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao gerar convite');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (generatedLink) {
+      navigator.clipboard.writeText(generatedLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Proteção de Rota (Security Layer 2)
   if (loading) return null; // Ou um spinner
@@ -38,13 +75,22 @@ const UserList: React.FC = () => {
             <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Gerenciamento de Usuários</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Gerencie o acesso, permissões e monitore a atividade da equipe.</p>
           </div>
-          <button
-            onClick={() => navigate('/users/new')}
-            className="bg-primary-600 hover:bg-primary-700 text-white font-bold h-10 px-5 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-primary-600/20 hover:shadow-primary-600/40"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Novo Usuário</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white font-bold h-10 px-5 rounded-lg flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+            >
+              <Send className="w-4 h-4" />
+              <span>Convidar</span>
+            </button>
+            <button
+              onClick={() => navigate('/users/new')}
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold h-10 px-5 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-primary-600/20 hover:shadow-primary-600/40"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Novo Usuário</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -265,6 +311,90 @@ const UserList: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Convidar Membro</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gere um link seguro para cadastro com acesso pré-configurado.</p>
+              </div>
+              <button onClick={() => setShowInviteModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!generatedLink ? (
+              <form onSubmit={handleCreateInvite} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email do Convidado</label>
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Função</label>
+                  <select
+                    value={inviteRole}
+                    onChange={e => setInviteRole(e.target.value)}
+                    className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="staff">Staff (Equipe)</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  disabled={inviteLoading}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-70"
+                >
+                  {inviteLoading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : <Send className="w-4 h-4" />}
+                  Gerar Link de Convite
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm text-green-800 dark:text-green-300 font-medium flex items-center gap-2">
+                    <Check className="w-4 h-4" /> Convite gerado com sucesso!
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Link de Acesso</label>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={generatedLink}
+                      className="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 font-mono"
+                    />
+                    <button
+                      onClick={copyToClipboard}
+                      className="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-600 dark:text-slate-300 transition-colors"
+                      title="Copiar"
+                    >
+                      {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Envie este link para o membro. Expira em 48h.</p>
+                </div>
+                <button
+                  onClick={() => { setGeneratedLink(null); setInviteEmail(''); setShowInviteModal(false); }}
+                  className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-white font-medium py-2.5 rounded-lg transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

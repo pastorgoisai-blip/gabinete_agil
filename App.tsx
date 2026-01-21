@@ -27,7 +27,9 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
+
 import ManagerRoute from './components/ManagerRoute';
+import AcceptInvite from './pages/AcceptInvite';
 
 // Layout Component (Authenticated)
 const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
@@ -72,6 +74,7 @@ const App: React.FC = () => {
         <HashRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/invite/:token" element={<AcceptInvite />} />
 
             {/* Rota semi-protegida: Usuário logado mas sem vínculo */}
             <Route element={<ProtectedRoute />}>
