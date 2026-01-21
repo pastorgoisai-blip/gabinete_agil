@@ -11,6 +11,7 @@ export interface UserProfile {
     role: 'super_admin' | 'admin' | 'manager' | 'staff' | 'volunteer';
     cabinet_id: string | null;
     avatar_url?: string;
+    status?: 'active' | 'inactive' | 'pending';
 
     is_super_admin?: boolean; // Coluna DB: is_super_admin
 }

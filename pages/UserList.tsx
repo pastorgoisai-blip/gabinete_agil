@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   ChevronRight,
@@ -7,22 +7,38 @@ import {
   Plus,
   ShieldCheck,
   Briefcase,
-  Heart
+  Heart,
+  Send,
+  Copy,
+  Check,
+  X,
+  User
 } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Send, Copy, Check, X } from 'lucide-react';
+import { useTeam } from '../hooks/useTeam';
+import { UserProfile } from '../contexts/AuthContext';
 
 const UserList: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, loading } = useAuth();
-  const [showInviteModal, setShowInviteModal] = React.useState(false);
-  const [inviteEmail, setInviteEmail] = React.useState('');
-  const [inviteRole, setInviteRole] = React.useState('staff');
-  const [inviteLoading, setInviteLoading] = React.useState(false);
-  const [generatedLink, setGeneratedLink] = React.useState<string | null>(null);
-  const [copied, setCopied] = React.useState(false);
+  const { profile, loading: authLoading } = useAuth();
+
+  // Data Fetching
+  const { users, loading: teamLoading } = useTeam();
+
+  // Local State for Filters & Modals
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Filter States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
 
   const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,23 +69,63 @@ const UserList: React.FC = () => {
     }
   };
 
+  // Filter Logic
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === '' || user.status === statusFilter;
+    const matchesRole = roleFilter === '' || user.role === roleFilter;
+
+    return matchesSearch && matchesStatus && matchesRole;
+  });
+
+  // Role Icon Helper
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'admin':
+      case 'super_admin':
+        return <ShieldCheck className="w-4 h-4 text-primary-600" />;
+      case 'volunteer':
+        return <Heart className="w-4 h-4 text-pink-500" />;
+      default:
+        return <Briefcase className="w-4 h-4 text-slate-400" />;
+    }
+  };
+
+  // Status Badge Helper
+  const getStatusBadge = (status: string) => {
+    const config = {
+      active: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-400', dot: 'bg-green-600 dark:bg-green-400', label: 'Ativo' },
+      inactive: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-800 dark:text-slate-400', dot: 'bg-slate-600 dark:bg-slate-400', label: 'Inativo' },
+      pending: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-400', dot: 'bg-amber-600 dark:bg-amber-400', label: 'Pendente' },
+    };
+
+    const statusKey = status as keyof typeof config;
+    const theme = config[statusKey] || config.inactive;
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${theme.bg} ${theme.text}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`}></span>
+        {theme.label}
+      </span>
+    );
+  };
+
   // Proteção de Rota (Security Layer 2)
-  if (loading) return null; // Ou um spinner
+  if (authLoading) return null;
   if (!profile?.is_super_admin && profile?.role !== 'admin') {
     return <Navigate to="/" replace />;
   }
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      {/* Header Section: Breadcrumbs & Actions */}
+      {/* Header Section */}
       <div className="flex flex-col gap-4">
-        {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-sm">
           <a className="text-slate-500 dark:text-slate-400 font-medium hover:text-primary-600 transition-colors" href="#">Dashboard</a>
           <ChevronRight className="text-slate-400 w-4 h-4" />
           <span className="text-slate-900 dark:text-white font-medium">Gerenciamento de Usuários</span>
         </div>
-        {/* Title & Primary Button */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Gerenciamento de Usuários</h1>
@@ -97,7 +153,6 @@ const UserList: React.FC = () => {
       {/* Filter & Search Bar */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
           <div className="flex-1">
             <label className="relative block h-11">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -107,14 +162,19 @@ const UserList: React.FC = () => {
                 className="block w-full h-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-all"
                 placeholder="Buscar por nome ou email..."
                 type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </label>
           </div>
-          {/* Filters */}
           <div className="flex gap-4">
             <div className="w-full lg:w-48">
               <div className="relative">
-                <select className="appearance-none w-full h-11 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="appearance-none w-full h-11 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none"
+                >
                   <option value="">Status: Todos</option>
                   <option value="active">Ativo</option>
                   <option value="inactive">Inativo</option>
@@ -124,7 +184,11 @@ const UserList: React.FC = () => {
             </div>
             <div className="w-full lg:w-48">
               <div className="relative">
-                <select className="appearance-none w-full h-11 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none">
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="appearance-none w-full h-11 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none"
+                >
                   <option value="">Função: Todas</option>
                   <option value="admin">Administrador</option>
                   <option value="staff">Equipe</option>
@@ -150,166 +214,69 @@ const UserList: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-sm">
-              {/* Row 1 */}
-              <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/1')}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuDUQnMATvJGjEvv1Srqs35aJxIXgjihTJ_0ueMmZQJedENNeKNyHiPV5AnGsBKiOCmt5AyTwO4tFFUxqaS474gLC9LbosFCAOsSnBykT2x0OHE4T6jsGzfiPp5zuA4wittzeLUOXUt_hwmbbaJhCItkIWKGisPLe9uZinwydMRSIqIFv8UE3cczmOwwr4GXDG5BFojfybBpCZ7XyJtrE2B-0EfKlkGuXU5RQL8sE8t9Op_eAeIRQ0i7o7J8vK4py1BMVx1TJN2H2LA")' }}></div>
-                    <div className="ml-4">
-                      <div className="font-medium text-slate-900 dark:text-white">Ana Silva</div>
-                      <div className="text-slate-500 dark:text-slate-400 text-xs">ana.silva@campanha.com</div>
+
+              {teamLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <div className="flex justify-center mb-2">
+                      <span className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></span>
                     </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <ShieldCheck className="w-4 h-4 text-primary-600" />
-                    <span>Administrador</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400"></span>
-                    Ativo
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                  Hoje, 09:42
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <button className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                </td>
-              </tr>
-              {/* Row 2 */}
-              <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/2')}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0cj4dfUXI4VtmKkHo89q38CFJo8897A1EUf8PG2nDbfIhRx5PfP44W5Qg8cp_e-N_B2Gz5NctSPujvBixF9xMTeC3D6aSeEdCddIPl-EvVcNCzP6qelcCPVlr5AsC0svJHQTWXxRcES7MCLVHhkMY-Ckqjbe2HhTLA2UWBuIlHS05KgkZqSHTRtzf01JRB3gBKECDybJ6cSDpJPYD45wu5j3ND1e0TQewqaJIhdZAAI7I7zmHnAaZn5ha2zJFAUVkKJDXd_ranEw")' }}></div>
-                    <div className="ml-4">
-                      <div className="font-medium text-slate-900 dark:text-white">Carlos Mendes</div>
-                      <div className="text-slate-500 dark:text-slate-400 text-xs">carlos.m@campanha.com</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <Briefcase className="w-4 h-4 text-slate-400" />
-                    <span>Equipe</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400"></span>
-                    Ativo
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                  Ontem, 16:20
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <button className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                </td>
-              </tr>
-              {/* Row 3 */}
-              <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/3')}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-                      JR
-                    </div>
-                    <div className="ml-4">
-                      <div className="font-medium text-slate-900 dark:text-white">João Rodrigues</div>
-                      <div className="text-slate-500 dark:text-slate-400 text-xs">joao.r@campanha.com</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <Heart className="w-4 h-4 text-slate-400" />
-                    <span>Voluntário</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-600 dark:bg-amber-400"></span>
-                    Pendente
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                  -
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <button className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                </td>
-              </tr>
-              {/* Row 4 */}
-              <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/4')}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAxgEFkkIuY2WTFtIx-dkifcFlR91N0WJpafiulLUB7xv28htZhgU2VZuKIOWMzFGpo6r5CjvEPQFPx9sX72l19qWe9HIdN4ocAY93rEmxYvDrUkqmJmwXSHnL84ectcWF_Onu0vTObKrMOssxR0mvOsHOxMRjZN30i7qfapCe4BYbZL_Z92I-lmbO8VEmJls6CWN6KihJJxkKBZvrd82wHEddm4DXM9JE1P2OOvXGlxaC5GU_WTbW-BGIo9auJ1yeRhiTlntBCtOg")' }}></div>
-                    <div className="ml-4">
-                      <div className="font-medium text-slate-900 dark:text-white">Mariana Costa</div>
-                      <div className="text-slate-500 dark:text-slate-400 text-xs">mariana.c@campanha.com</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <Briefcase className="w-4 h-4 text-slate-400" />
-                    <span>Equipe</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-600 dark:bg-slate-400"></span>
-                    Inativo
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                  20 Ago, 2024
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <button className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                </td>
-              </tr>
+                    Carregando equipe...
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    Nenhum membro encontrado com os filtros atuais.
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer"
+                    onClick={() => navigate(`/users/edit/${user.id}`)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        {user.avatar_url ? (
+                          <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: `url("${user.avatar_url}")` }}></div>
+                        ) : (
+                          <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                            <User className="h-5 w-5" />
+                          </div>
+                        )}
+                        <div className="ml-4">
+                          <div className="font-medium text-slate-900 dark:text-white">{user.name}</div>
+                          <div className="text-slate-500 dark:text-slate-400 text-xs">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                      <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                        {getRoleIcon(user.role)}
+                        <span className="capitalize">{user.role}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(user.status || 'pending')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
+                      {/* Mocking last access for now or using a helper if column exists */}
+                      -
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <button className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-        {/* Pagination */}
-        <div className="flex flex-col md:flex-row items-center justify-between p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 gap-4">
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            Mostrando <span className="font-medium text-slate-900 dark:text-white">1</span> a <span className="font-medium text-slate-900 dark:text-white">5</span> de <span className="font-medium text-slate-900 dark:text-white">24</span> resultados
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center justify-center h-8 w-8 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" disabled>
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button className="flex items-center justify-center h-8 w-8 rounded bg-primary-600 text-white font-medium text-sm shadow-md shadow-primary-600/20">
-              1
-            </button>
-            <button className="flex items-center justify-center h-8 w-8 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 text-sm font-medium transition-colors">
-              2
-            </button>
-            <button className="flex items-center justify-center h-8 w-8 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 text-sm font-medium transition-colors">
-              3
-            </button>
-            <span className="text-slate-400 px-1">...</span>
-            <button className="flex items-center justify-center h-8 w-8 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 text-sm font-medium transition-colors">
-              5
-            </button>
-            <button className="flex items-center justify-center h-8 w-8 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        {/* Pagination (Optional: Keep static or implement infinite scroll later) */}
       </div>
 
       {/* Invite Modal */}
