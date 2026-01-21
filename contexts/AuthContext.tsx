@@ -11,7 +11,8 @@ export interface UserProfile {
     role: 'super_admin' | 'admin' | 'manager' | 'staff' | 'volunteer';
     cabinet_id: string | null;
     avatar_url?: string;
-    is_platform_admin?: boolean;
+
+    is_super_admin?: boolean; // Coluna DB: is_super_admin
 }
 
 interface AuthContextType {
@@ -70,6 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.error('Erro ao buscar perfil:', error);
             } else {
                 setProfile(data);
+
+                // --- Lockdown de Segurança (Refactor Critic) ---
+                // Se o usuário está logado mas NÃO tem gabinete, deve ir para Pending Invite ou Join
+                if (data && !data.cabinet_id) {
+                    const currentHash = window.location.hash.replace('#', '');
+                    const allowedRoutes = ['/onboarding', '/pending-invite', '/login'];
+
+                    if (!allowedRoutes.includes(currentHash)) {
+                        console.warn('Usuário sem gabinete. Redirecionando para Invite Pendente.');
+                        window.location.hash = '#/pending-invite';
+                    }
+                }
             }
         } catch (err) {
             console.error('Erro inesperado ao buscar perfil:', err);

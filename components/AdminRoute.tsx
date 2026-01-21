@@ -14,8 +14,8 @@ export default function AdminRoute() {
         );
     }
 
-    // Verifica se o usuário é Admin da Plataforma
-    if (!profile || !profile.is_platform_admin) {
+    // Verifica se o usuário é Admin da Plataforma (Super Admin)
+    if (!profile || !profile.is_super_admin) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
                 <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />

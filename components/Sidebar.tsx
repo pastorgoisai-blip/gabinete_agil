@@ -1,14 +1,14 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Award, 
-  Calendar, 
-  MessageSquareText, 
-  BarChart3, 
-  Gavel, 
-  FolderOpen, 
+import {
+  LayoutDashboard,
+  Users,
+  Award,
+  Calendar,
+  MessageSquareText,
+  BarChart3,
+  Gavel,
+  FolderOpen,
   Settings,
   LogOut,
   Landmark,
@@ -16,9 +16,11 @@ import {
   Bell,
   LifeBuoy,
   User,
-  Zap // Adicionado ícone de agilidade
+  Zap, // Adicionado ícone de agilidade
+  ShieldCheck
 } from 'lucide-react';
 import { useProfile } from '../contexts/ProfileContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -26,7 +28,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
-  const { profile } = useProfile();
+  const { profile } = useProfile(); // Contexto visual (Legacy/Local)
+  const { profile: authProfile } = useAuth(); // Contexto de Autenticação Real (Supabase)
 
   // Reordenação para fluxo de trabalho Ágil: Agente (Entrada) -> Demandas (Processamento) -> CRM (Base)
   const menuItems = [
@@ -39,21 +42,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { label: 'Matérias Legislativas', path: '/projects', icon: FolderOpen },
     { label: 'Homenageados', path: '/honored', icon: Award },
     { label: 'Relatórios & BI', path: '/reports', icon: BarChart3 },
-    { label: 'Equipe & Usuários', path: '/users', icon: Users }, // Ícone repetido intencionalmente para agrupar pessoas
+    { label: 'Equipe & Usuários', path: '/users', icon: Users },
     { label: 'Configurações', path: '/settings', icon: Settings },
     { label: 'Ajuda', path: '/help', icon: LifeBuoy },
-  ];
+  ].filter(item => {
+    // Regras de Visibilidade
+    if (item.path === '/users' || item.path === '/settings') {
+      // Apenas Admin ou Super Admin podem ver "Equipes" e "Configurações"
+      return authProfile?.role === 'admin' || authProfile?.is_super_admin;
+    }
+    return true; // Demais itens visíveis para todos (por enquanto)
+  });
 
   return (
     <>
       {/* Mobile backdrop */}
-      <div 
+      <div
         className={`fixed inset-0 z-20 bg-gray-900 bg-opacity-50 transition-opacity lg:hidden ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsOpen(false)}
       />
 
       <div className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-slate-900 text-white transition duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl`}>
-        
+
         {/* Header - Novo Logo Ágil */}
         <div className="flex items-center justify-center h-24 bg-slate-950 border-b border-slate-800/50">
           <div className="flex items-center gap-3">
@@ -77,10 +87,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
               {profile.photo ? (
-                <img 
-                  src={profile.photo} 
-                  alt={profile.name} 
-                  className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md bg-slate-800" 
+                <img
+                  src={profile.photo}
+                  alt={profile.name}
+                  className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md bg-slate-800"
                 />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center text-slate-400 shadow-md">
@@ -90,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               {/* Status Indicator */}
               <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-slate-900 rounded-full" title="Sistema Online"></span>
             </div>
-            
+
             <div className="flex-1 min-w-0 overflow-hidden">
               <p className="font-bold text-sm text-white truncate leading-tight" title={profile.name}>
                 {profile.name}
@@ -114,8 +124,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               to={item.path}
               className={({ isActive }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-                ${isActive 
-                  ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/20 translate-x-1' 
+                ${isActive
+                  ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/20 translate-x-1'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                 }
               `}
@@ -128,7 +138,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800/50 bg-slate-950">
+        <div className="p-4 border-t border-slate-800/50 bg-slate-950 space-y-2">
+          {/* Link Super Admin (Apenas para Admins) */}
+          {authProfile?.is_super_admin && (
+            <NavLink
+              to="/admin"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold text-purple-400 hover:text-white hover:bg-purple-900/40 transition-colors border border-purple-900/30 mb-2"
+            >
+              <ShieldCheck className="w-5 h-5" />
+              Administração SaaS
+            </NavLink>
+          )}
+
           <NavLink
             to="/login"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-slate-900 transition-colors"

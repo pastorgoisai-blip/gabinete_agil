@@ -1,18 +1,26 @@
 import React from 'react';
-import { 
-  Search, 
-  ChevronRight, 
-  ChevronLeft, 
-  MoreVertical, 
-  Plus, 
-  ShieldCheck, 
-  Briefcase, 
-  Heart 
+import {
+  Search,
+  ChevronRight,
+  ChevronLeft,
+  MoreVertical,
+  Plus,
+  ShieldCheck,
+  Briefcase,
+  Heart
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const UserList: React.FC = () => {
   const navigate = useNavigate();
+  const { profile, loading } = useAuth();
+
+  // Proteção de Rota (Security Layer 2)
+  if (loading) return null; // Ou um spinner
+  if (!profile?.is_super_admin && profile?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -30,7 +38,7 @@ const UserList: React.FC = () => {
             <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Gerenciamento de Usuários</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Gerencie o acesso, permissões e monitore a atividade da equipe.</p>
           </div>
-          <button 
+          <button
             onClick={() => navigate('/users/new')}
             className="bg-primary-600 hover:bg-primary-700 text-white font-bold h-10 px-5 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-primary-600/20 hover:shadow-primary-600/40"
           >
@@ -49,9 +57,9 @@ const UserList: React.FC = () => {
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                 <Search className="w-5 h-5" />
               </span>
-              <input 
-                className="block w-full h-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-all" 
-                placeholder="Buscar por nome ou email..." 
+              <input
+                className="block w-full h-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-all"
+                placeholder="Buscar por nome ou email..."
                 type="text"
               />
             </label>
@@ -100,7 +108,7 @@ const UserList: React.FC = () => {
               <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/1')}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuDUQnMATvJGjEvv1Srqs35aJxIXgjihTJ_0ueMmZQJedENNeKNyHiPV5AnGsBKiOCmt5AyTwO4tFFUxqaS474gLC9LbosFCAOsSnBykT2x0OHE4T6jsGzfiPp5zuA4wittzeLUOXUt_hwmbbaJhCItkIWKGisPLe9uZinwydMRSIqIFv8UE3cczmOwwr4GXDG5BFojfybBpCZ7XyJtrE2B-0EfKlkGuXU5RQL8sE8t9Op_eAeIRQ0i7o7J8vK4py1BMVx1TJN2H2LA")'}}></div>
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuDUQnMATvJGjEvv1Srqs35aJxIXgjihTJ_0ueMmZQJedENNeKNyHiPV5AnGsBKiOCmt5AyTwO4tFFUxqaS474gLC9LbosFCAOsSnBykT2x0OHE4T6jsGzfiPp5zuA4wittzeLUOXUt_hwmbbaJhCItkIWKGisPLe9uZinwydMRSIqIFv8UE3cczmOwwr4GXDG5BFojfybBpCZ7XyJtrE2B-0EfKlkGuXU5RQL8sE8t9Op_eAeIRQ0i7o7J8vK4py1BMVx1TJN2H2LA")' }}></div>
                     <div className="ml-4">
                       <div className="font-medium text-slate-900 dark:text-white">Ana Silva</div>
                       <div className="text-slate-500 dark:text-slate-400 text-xs">ana.silva@campanha.com</div>
@@ -132,7 +140,7 @@ const UserList: React.FC = () => {
               <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/2')}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0cj4dfUXI4VtmKkHo89q38CFJo8897A1EUf8PG2nDbfIhRx5PfP44W5Qg8cp_e-N_B2Gz5NctSPujvBixF9xMTeC3D6aSeEdCddIPl-EvVcNCzP6qelcCPVlr5AsC0svJHQTWXxRcES7MCLVHhkMY-Ckqjbe2HhTLA2UWBuIlHS05KgkZqSHTRtzf01JRB3gBKECDybJ6cSDpJPYD45wu5j3ND1e0TQewqaJIhdZAAI7I7zmHnAaZn5ha2zJFAUVkKJDXd_ranEw")'}}></div>
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0cj4dfUXI4VtmKkHo89q38CFJo8897A1EUf8PG2nDbfIhRx5PfP44W5Qg8cp_e-N_B2Gz5NctSPujvBixF9xMTeC3D6aSeEdCddIPl-EvVcNCzP6qelcCPVlr5AsC0svJHQTWXxRcES7MCLVHhkMY-Ckqjbe2HhTLA2UWBuIlHS05KgkZqSHTRtzf01JRB3gBKECDybJ6cSDpJPYD45wu5j3ND1e0TQewqaJIhdZAAI7I7zmHnAaZn5ha2zJFAUVkKJDXd_ranEw")' }}></div>
                     <div className="ml-4">
                       <div className="font-medium text-slate-900 dark:text-white">Carlos Mendes</div>
                       <div className="text-slate-500 dark:text-slate-400 text-xs">carlos.m@campanha.com</div>
@@ -198,7 +206,7 @@ const UserList: React.FC = () => {
               <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer" onClick={() => navigate('/users/edit/4')}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAxgEFkkIuY2WTFtIx-dkifcFlR91N0WJpafiulLUB7xv28htZhgU2VZuKIOWMzFGpo6r5CjvEPQFPx9sX72l19qWe9HIdN4ocAY93rEmxYvDrUkqmJmwXSHnL84ectcWF_Onu0vTObKrMOssxR0mvOsHOxMRjZN30i7qfapCe4BYbZL_Z92I-lmbO8VEmJls6CWN6KihJJxkKBZvrd82wHEddm4DXM9JE1P2OOvXGlxaC5GU_WTbW-BGIo9auJ1yeRhiTlntBCtOg")'}}></div>
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-center bg-cover" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAxgEFkkIuY2WTFtIx-dkifcFlR91N0WJpafiulLUB7xv28htZhgU2VZuKIOWMzFGpo6r5CjvEPQFPx9sX72l19qWe9HIdN4ocAY93rEmxYvDrUkqmJmwXSHnL84ectcWF_Onu0vTObKrMOssxR0mvOsHOxMRjZN30i7qfapCe4BYbZL_Z92I-lmbO8VEmJls6CWN6KihJJxkKBZvrd82wHEddm4DXM9JE1P2OOvXGlxaC5GU_WTbW-BGIo9auJ1yeRhiTlntBCtOg")' }}></div>
                     <div className="ml-4">
                       <div className="font-medium text-slate-900 dark:text-white">Mariana Costa</div>
                       <div className="text-slate-500 dark:text-slate-400 text-xs">mariana.c@campanha.com</div>

@@ -11,6 +11,7 @@ import Legislative from './pages/Legislative';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
+import PendingInvite from './pages/PendingInvite';
 import Agenda from './pages/Agenda';
 import Honored from './pages/Honored';
 import Agent from './pages/Agent';
@@ -22,16 +23,16 @@ import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import HelpSupport from './pages/HelpSupport';
 import { ProfileProvider } from './contexts/ProfileContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import ManagerRoute from './components/ManagerRoute';
 
 // Layout Component (Authenticated)
 const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const { profile, loading } = useAuth(); // Check user profile
 
   useEffect(() => {
     if (darkMode) {
@@ -40,17 +41,6 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
-
-  // Lógica de Redirecionamento para Onboarding
-  // 1. Se não carregando
-  // 2. Se tem usuário logado (user)
-  // 3. Mas NÃO tem perfil OU NÃO tem cabinet_id no perfil
-  if (!loading && useAuth().user) {
-    if (!profile || !profile.cabinet_id) {
-      window.location.href = '#/onboarding';
-      return null;
-    }
-  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-slate-950">
@@ -83,8 +73,9 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/login" element={<Login />} />
 
-            {/* Rota semi-protegida: Onboarding (Precisa estar logado mas sem gabinete) */}
+            {/* Rota semi-protegida: Usuário logado mas sem vínculo */}
             <Route element={<ProtectedRoute />}>
+              <Route path="/pending-invite" element={<PendingInvite />} />
               <Route path="/onboarding" element={<Onboarding />} />
             </Route>
 
@@ -95,7 +86,6 @@ const App: React.FC = () => {
                 <Route path="/voters" element={<Voters />} />
                 <Route path="/demands" element={<Demands />} />
                 <Route path="/legislative" element={<Legislative />} />
-                <Route path="/settings" element={<Settings />} />
                 <Route path="/agenda" element={<Agenda />} />
                 <Route path="/honored" element={<Honored />} />
                 <Route path="/agent" element={<Agent />} />
@@ -104,9 +94,13 @@ const App: React.FC = () => {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/help" element={<HelpSupport />} />
 
-                <Route path="/users" element={<UserList />} />
-                <Route path="/users/new" element={<UserAdd />} />
-                <Route path="/users/edit/:id" element={<UserEdit />} />
+                {/* Manager Routes (Admin/Super Admin only) */}
+                <Route element={<ManagerRoute />}>
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/users" element={<UserList />} />
+                  <Route path="/users/new" element={<UserAdd />} />
+                  <Route path="/users/edit/:id" element={<UserEdit />} />
+                </Route>
               </Route>
             </Route>
 

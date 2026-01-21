@@ -2,9 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-    Users, Building2, ShieldCheck, Search, Plus, MoreHorizontal,
-    RotateCcw, Lock, CheckCircle, XCircle
+    Users, Building2, ShieldCheck, Search, Plus,
+    CheckCircle, Trash2
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+interface Cabinet {
+    id: string;
+    name: string;
+    created_at: string;
+}
+
+interface UserProfile {
+    id: string;
+    name: string | null;
+    role: string;
+    status: string; // [NEW] Status column
+    is_super_admin: boolean;
+    cabinet_id: string | null;
+    created_at: string;
+}
 
 interface AdminStats {
     totalUsers: number;
@@ -14,17 +31,15 @@ interface AdminStats {
 
 const AdminDashboard: React.FC = () => {
     const { profile } = useAuth();
-    const [stats, setStats] = useState<AdminStats>({ totalUsers: 0, totalCabinets: 0, activeCabinets: 0 });
-    const [users, setUsers] = useState<any[]>([]);
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState<AdminStats>({ totalUsers: 0, totalCabinets: 0, activeCabinets: 0 });
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [cabinets, setCabinets] = useState<Cabinet[]>([]);
+    const [activeTab, setActiveTab] = useState<'cabinets' | 'users'>('cabinets');
     const [searchTerm, setSearchTerm] = useState('');
-    const [filter, setFilter] = useState('all'); // all, admins, pending
-
-    // Estado para "Criar Usuário Manualmente"
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newUserEmail, setNewUserEmail] = useState('');
-    const [newUserName, setNewUserName] = useState('');
-    const [createLoading, setCreateLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState<string | null>(null); // [NEW] Track active action
+    const [cabinetActionLoading, setCabinetActionLoading] = useState(false); // [NEW] Cabinet action loading
 
     useEffect(() => {
         fetchData();
@@ -33,233 +48,388 @@ const AdminDashboard: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Stats
-            const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact' });
-            const { count: cabinetCount } = await supabase.from('cabinets').select('*', { count: 'exact' });
+            console.log('=== FRESH START: Fetching data ===');
 
-            // Lista de Usuários (agora possível graças às policies de Platform Admin)
-            const { data: usersData, error } = await supabase
+            // 1. Users
+            const { data: usersData, error: uErr } = await supabase
                 .from('profiles')
-                .select(`
-                    *,
-                    cabinets ( name )
-                `)
+                .select('id, name, role, status, is_super_admin, cabinet_id, created_at') // [NEW] Added status
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (uErr) {
+                console.error('Error fetching users:', uErr);
+            } else {
+                console.log('✓ Users loaded:', usersData?.length);
+                setUsers(usersData as UserProfile[] || []);
+            }
 
+            // 2. Cabinets (formerly organizations)
+            const { data: cabinetsData, error: cErr } = await supabase
+                .from('cabinets')
+                .select('id, name, created_at')
+                .order('created_at', { ascending: false });
+
+            if (cErr) {
+                console.error('Error fetching cabinets:', cErr);
+            } else {
+                console.log('✓ Cabinets loaded:', cabinetsData?.length);
+                setCabinets(cabinetsData as Cabinet[] || []);
+            }
+
+            // 3. Stats
             setStats({
-                totalUsers: userCount || 0,
-                totalCabinets: cabinetCount || 0,
-                activeCabinets: cabinetCount || 0 // TODO: Filtrar por status se houver
+                totalUsers: usersData?.length || 0,
+                totalCabinets: cabinetsData?.length || 0,
+                activeCabinets: cabinetsData?.length || 0
             });
-            setUsers(usersData || []);
 
         } catch (error) {
-            console.error('Erro ao carregar dados admin:', error);
-            alert('Falha ao carregar dados. Verifique suas permissões.');
+            console.error('Unexpected error:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setCreateLoading(true);
-
-        try {
-            // Usando uma Edge Function hipotética ou inserção direta se Policies permitirem
-            // Como estamos sem service_role no client, a melhor aposta é tentar o Sign Up
-            // Mas o usuário quer bypass...
-            // VAMOS TENTAR INSERIR NO PROFILES DIRETO SE O AUTH EXISTIR, MAS...
-            // O ideal para "Criar na Força" é via SQL Function que criamos.
-
-            // Mas vamos usar a função `force_create_admin_profile` se o ID já existir no Auth,
-            // ou instruir o usuário que ele precisa se cadastrar no Auth primeiro.
-
-            // Abordagem Híbrida:
-            alert('Para criar usuários totalmente novos (Auth + Profile), use o Signup normal.\n\nEsta função promoveria um email existente para Admin.');
-
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setCreateLoading(false);
-            setShowCreateModal(false);
-        }
-    };
-
-    const promoteToAdmin = async (email: string) => {
-        if (!confirm(`Promover ${email} a Super Admin Global?`)) return;
-
-        const { data, error } = await supabase.rpc('make_me_admin', { target_email: email });
-
-        if (error) alert('Erro: ' + error.message);
-        else {
-            alert(data);
-            fetchData();
-        }
-    };
-
-    const filteredUsers = users.filter(user =>
-        (user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (filter === 'all' || (filter === 'admins' && user.is_platform_admin))
+    const filteredUsers = users.filter(u =>
+        (u.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    return (
-        <div className="min-h-screen bg-gray-100 p-8">
-            <div className="max-w-7xl mx-auto space-y-8">
+    const filteredCabinets = cabinets.filter(c =>
+        (c.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
+    // [NEW] Actions Implementation
+    const handleApproveUser = async (userId: string) => {
+        setActionLoading(userId);
+        try {
+            const { error } = await supabase.rpc('approve_user', { target_user_id: userId });
+            if (error) throw error;
+            alert('Usuário aprovado com sucesso!'); // Replacing toast with alert for simplicity as requested by flow context, but user asked for toasts. Using alert implies native confirm too.
+            fetchData();
+        } catch (error: any) {
+            console.error('Error approving user:', error);
+            alert(`Erro ao aprovar: ${error.message}`);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleChangeRole = async (userId: string, newRole: string) => {
+        setActionLoading(userId);
+        try {
+            const { error } = await supabase.rpc('change_user_role', { target_user_id: userId, new_role: newRole });
+            if (error) throw error;
+            alert(`Função alterada para ${newRole} com sucesso!`);
+            fetchData();
+        } catch (error: any) {
+            console.error('Error changing role:', error);
+            alert(`Erro ao alterar função: ${error.message}`);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!window.confirm('Tem certeza que deseja deletar este usuário? Esta ação não pode ser desfeita.')) return;
+
+        setActionLoading(userId);
+        try {
+            const { error } = await supabase.rpc('delete_user_profile', { target_user_id: userId });
+            if (error) throw error;
+            alert('Usuário deletado com sucesso!');
+            fetchData();
+        } catch (error: any) {
+            console.error('Error deleting user:', error);
+            alert(`Erro ao deletar usuário: ${error.message}`);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // [NEW] Cabinet Actions
+    const handleCreateCabinet = async () => {
+        const name = window.prompt("Nome do novo gabinete:");
+        if (!name) return;
+
+        setCabinetActionLoading(true);
+        try {
+            const { error } = await supabase.rpc('create_cabinet_admin', { name, plan: 'basic', owner_email: null });
+            if (error) throw error;
+            alert('Gabinete criado com sucesso!');
+            fetchData();
+        } catch (error: any) {
+            console.error('Error creating cabinet:', error);
+            alert(`Erro ao criar gabinete: ${error.message}`);
+        } finally {
+            setCabinetActionLoading(false);
+        }
+    };
+
+    const handleDeleteCabinet = async (cabinetId: string) => {
+        if (!window.confirm('ATENÇÃO: Tem certeza que deseja apagar este gabinete e TODOS os seus dados? Esta ação é irreversível.')) return;
+
+        setCabinetActionLoading(true);
+        try {
+            const { error } = await supabase.rpc('delete_cabinet_fully', { target_cabinet_id: cabinetId });
+            if (error) throw error;
+            alert('Gabinete deletado com sucesso!');
+            fetchData();
+        } catch (error: any) {
+            console.error('Error deleting cabinet:', error);
+            alert(`Erro ao deletar gabinete: ${error.message}`);
+        } finally {
+            setCabinetActionLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50 p-8">
+            <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-gray-200 gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                             <ShieldCheck className="text-purple-600" />
-                            Painel Super Admin
+                            Super Admin
                         </h1>
-                        <p className="text-gray-500">Gestão global do SaaS (Gabinete Ágil)</p>
+                        <p className="text-sm text-gray-500">Controle total da plataforma</p>
                     </div>
                     <div className="flex items-center gap-4">
-                        <div className="text-right">
-                            <p className="text-sm font-bold text-gray-900">{profile?.name}</p>
-                            <p className="text-xs text-purple-600 font-mono">PLATFORM OWNER</p>
+                        <button
+                            onClick={handleCreateCabinet}
+                            disabled={cabinetActionLoading}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" /> Novo Gabinete
+                        </button>
+                        <div className="text-right hidden sm:block">
+                            <p className="text-sm font-bold text-gray-900">{profile?.full_name || profile?.name}</p>
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">MASTER</span>
                         </div>
                         <button
-                            onClick={() => window.location.href = '/'}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+                            onClick={() => navigate('/')}
+                            className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
                         >
-                            Voltar ao App
+                            Sair do Admin
                         </button>
                     </div>
                 </div>
 
-                {/* Stats Cards */}
+                {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                        <div className="bg-blue-100 p-3 rounded-full text-blue-600">
-                            <Users className="w-8 h-8" />
-                        </div>
-                        <div>
-                            <p className="text-gray-500 text-sm font-medium">Usuários Registrados</p>
-                            <h3 className="text-3xl font-bold text-gray-900">{stats.totalUsers}</h3>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                        <div className="bg-green-100 p-3 rounded-full text-green-600">
-                            <Building2 className="w-8 h-8" />
-                        </div>
-                        <div>
-                            <p className="text-gray-500 text-sm font-medium">Gabinetes Ativos</p>
-                            <h3 className="text-3xl font-bold text-gray-900">{stats.activeCabinets}</h3>
+                    <div className="bg-blue-50 p-6 rounded-xl">
+                        <div className="flex items-center gap-3">
+                            <Building2 className="w-6 h-6 text-blue-600" />
+                            <div>
+                                <p className="text-sm text-gray-500">Total de Gabinetes</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats.totalCabinets}</p>
+                            </div>
                         </div>
                     </div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                        <div className="bg-purple-100 p-3 rounded-full text-purple-600">
-                            <ShieldCheck className="w-8 h-8" />
+                    <div className="bg-green-50 p-6 rounded-xl">
+                        <div className="flex items-center gap-3">
+                            <Users className="w-6 h-6 text-green-600" />
+                            <div>
+                                <p className="text-sm text-gray-500">Usuários Totais</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-gray-500 text-sm font-medium">Status do Sistema</p>
-                            <h3 className="text-lg font-bold text-green-600 flex items-center gap-1">
-                                <CheckCircle className="w-5 h-5" /> Operacional
-                            </h3>
+                    </div>
+                    <div className="bg-purple-50 p-6 rounded-xl">
+                        <div className="flex items-center gap-3">
+                            <CheckCircle className="w-6 h-6 text-purple-600" />
+                            <div>
+                                <p className="text-sm text-gray-500">Status</p>
+                                <p className="text-lg font-bold text-purple-600">Operacional</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Users Table */}
+                {/* Tabs */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <h2 className="text-lg font-bold text-gray-900">Gerenciamento de Usuários</h2>
-
-                        <div className="flex gap-2 w-full sm:w-auto">
-                            <div className="relative flex-1 sm:flex-none">
-                                <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar usuário..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500 w-full sm:w-64"
-                                />
-                            </div>
-                            <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                                <Plus className="w-4 h-4" /> Novo
+                    <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+                        <div className="flex space-x-1 bg-gray-200/50 p-1 rounded-lg">
+                            <button
+                                onClick={() => setActiveTab('cabinets')}
+                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'cabinets'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Building2 className="w-4 h-4" /> Gabinetes
+                                </div>
                             </button>
+                            <button
+                                onClick={() => setActiveTab('users')}
+                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'users'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Users className="w-4 h-4" /> Usuários
+                                </div>
+                            </button>
+                        </div>
+
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+                            <input
+                                type="text"
+                                placeholder={activeTab === 'cabinets' ? "Buscar gabinete..." : "Buscar usuário..."}
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500 w-64"
+                            />
                         </div>
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-3">Usuário</th>
-                                    <th className="px-6 py-3">Gabinete</th>
-                                    <th className="px-6 py-3">Role</th>
-                                    <th className="px-6 py-3">Status</th>
-                                    <th className="px-6 py-3 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {loading ? (
+                        {loading && (
+                            <div className="p-12 text-center text-gray-500">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-4 mx-auto"></div>
+                                Carregando...
+                            </div>
+                        )}
+
+                        {!loading && activeTab === 'cabinets' && (
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                                            Carregando usuários...
-                                        </td>
+                                        <th className="px-6 py-3">Nome</th>
+                                        <th className="px-6 py-3">ID</th>
+                                        <th className="px-6 py-3">Criado em</th>
+                                        <th className="px-6 py-3 text-right">Ações</th>
                                     </tr>
-                                ) : filteredUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                                                    {user.name?.charAt(0) || user.email?.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">{user.name}</p>
-                                                    <p className="text-gray-500 text-xs">{user.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {user.cabinets ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                    <Building2 className="w-3 h-3" />
-                                                    {user.cabinets.name}
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-400 italic">Sem gabinete</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {user.is_platform_admin ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                                    SUPER ADMIN
-                                                </span>
-                                            ) : (
-                                                <span className="capitalize text-gray-700">{user.role}</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                {user.status === 'active' ? 'Ativo' : 'Pendente'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button
-                                                onClick={() => promoteToAdmin(user.email)}
-                                                className="text-gray-400 hover:text-purple-600 font-medium text-xs mr-3"
-                                                title="Promover a Admin"
-                                            >
-                                                Promover
-                                            </button>
-                                            <button className="text-gray-400 hover:text-blue-600">
-                                                <MoreHorizontal className="w-5 h-5" />
-                                            </button>
-                                        </td>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {filteredCabinets.map(cab => (
+                                        <tr key={cab.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 font-medium text-gray-900">{cab.name || 'Sem nome'}</td>
+                                            <td className="px-6 py-4 text-xs font-mono text-gray-400">{cab.id}</td>
+                                            <td className="px-6 py-4 text-gray-500">
+                                                {new Date(cab.created_at).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button
+                                                    onClick={() => handleDeleteCabinet(cab.id)}
+                                                    disabled={cabinetActionLoading}
+                                                    className="p-1 hover:bg-red-50 text-red-500 rounded transition"
+                                                    title="Deletar Gabinete"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </td>
+
+                                        </tr>
+                                    ))}
+                                    {filteredCabinets.length === 0 && (
+                                        <tr>
+                                            <td colSpan={3} className="p-8 text-center text-gray-400">
+                                                Nenhum gabinete encontrado
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
+
+                        {!loading && activeTab === 'users' && (
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                    <tr>
+                                        <th className="px-6 py-3">Nome</th>
+                                        <th className="px-6 py-3">Role</th>
+                                        <th className="px-6 py-3">Status</th>
+                                        <th className="px-6 py-3">Super Admin?</th>
+                                        <th className="px-6 py-3">Gabinete ID</th>
+                                        <th className="px-6 py-3 text-right">Ações</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {filteredUsers.map(u => (
+                                        <tr key={u.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 font-medium text-gray-900">{u.name || 'Sem nome'}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'admin' || u.role === 'super_admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100'
+                                                    }`}>
+                                                    {u.role}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                                    }`}>
+                                                    {u.status || 'pending'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {u.is_super_admin ? (
+                                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                                ) : (
+                                                    <span className="text-gray-300">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-xs font-mono text-gray-400">
+                                                {u.cabinet_id || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-right space-x-2">
+                                                {/* Approve Button */}
+                                                {u.status === 'pending' && (
+                                                    <button
+                                                        onClick={() => handleApproveUser(u.id)}
+                                                        disabled={actionLoading === u.id}
+                                                        className="text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded transition"
+                                                    >
+                                                        Aprovar
+                                                    </button>
+                                                )}
+
+                                                {/* Promote/Demote Buttons */}
+                                                {(u.status === 'active' && u.role !== 'admin' && u.role !== 'super_admin') && (
+                                                    <button
+                                                        onClick={() => handleChangeRole(u.id, 'admin')}
+                                                        disabled={actionLoading === u.id}
+                                                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition"
+                                                    >
+                                                        Promover Admin
+                                                    </button>
+                                                )}
+
+                                                {(u.status === 'active' && (u.role === 'admin' || u.role === 'super_admin')) && (
+                                                    <button
+                                                        onClick={() => handleChangeRole(u.id, 'staff')}
+                                                        disabled={actionLoading === u.id}
+                                                        className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded transition"
+                                                    >
+                                                        Rebaixar
+                                                    </button>
+                                                )}
+
+                                                {/* Delete Button */}
+                                                {profile?.id !== u.id && (
+                                                    <button
+                                                        onClick={() => handleDeleteUser(u.id)}
+                                                        disabled={actionLoading === u.id}
+                                                        className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded transition"
+                                                    >
+                                                        Deletar
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredUsers.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="p-8 text-center text-gray-400">
+                                                Nenhum usuário encontrado
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             </div>

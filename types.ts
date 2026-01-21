@@ -10,7 +10,7 @@ export interface User {
   status: 'active' | 'inactive' | 'pending';
   avatar_url?: string;
   last_access?: string;
-  is_platform_admin?: boolean; // Super Admin Global
+  is_super_admin?: boolean; // Super Admin Global
 }
 
 export interface Voter {

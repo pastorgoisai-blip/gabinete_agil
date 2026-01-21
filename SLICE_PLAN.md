@@ -1,30 +1,21 @@
-# SLICE_PLAN: Funcionalidade Agenda Real
+# SLICE_PLAN: Dashboard Super Admin
 
-## 1. Database Schema
-**Tabela**: `events` (Atualização)
-- `notes` TEXT
-- `notify_politician` BOOLEAN DEFAULT FALSE
-- `notify_media` BOOLEAN DEFAULT FALSE
-- `notify_staff` BOOLEAN DEFAULT FALSE
+## 1. Objetivo
+Criar uma interface administrativa para gestão da plataforma SaaS (Multi-tenant).
 
-## 2. API / Hooks (The Bridge)
-**Hook**: `hooks/useAgenda.ts`
-- **Actions**:
-  - `fetchEvents()`: GET /events
-  - `createEvent(data)`: POST /events
-  - `updateEvent(id, data)`: PUT /events
-  - `deleteEvent(id)`: DELETE /events
-- **Validation (Zod)**:
-  - Validar datas e campos obrigatórios antes de enviar.
-- **Transformation**:
-  - DB `start_time` <-> UI `startTime`
-  - DB `end_time` <-> UI `endTime`
-  - DB `notify_politician` <-> UI `notifyPolitician`
-  - (etc)
+## 2. Componente UI
+**Arquivo**: `pages/admin/AdminDashboard.tsx`
 
-## 3. UI Component (The Face)
-**Arquivo**: `pages/Agenda.tsx`
-- Remover `initialEvents`.
-- Integrar `useAgenda`.
-- Mostrar Loading State.
-- Conectar formulários às funções do hook.
+**Funcionalidades**:
+1.  **KPIs Globais**: Total de Gabinetes, Usuários, Receita (Mock inicial).
+2.  **Lista de Gabinetes**: Tabela com ID, Nome, Plano, Data de Criação.
+3.  **Ação de Criar**: Botão "Novo Gabinete" -> Modal com Nome e Plano.
+    *   *Nota*: Usar a policy RLS `RLS_Cabinets_Insert` que já criamos (só super_admin pode).
+
+## 3. Dados (Supabase)
+- **Leitura**: `SELECT * FROM cabinets` (Policy já permite Super Admin ver tudo).
+- **Escrita**: `INSERT INTO cabinets` (Policy já restringe a Super Admin).
+
+## 4. Segurança
+- A rota `/admin` já está protegida por `AdminRoute`.
+- Vamos verificar se `AdminRoute` checa a flag `is_super_admin` corretamente.
