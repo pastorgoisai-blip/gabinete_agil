@@ -2,6 +2,16 @@ import React from 'react';
 
 // --- Entidades Principais ---
 
+export interface Cabinet {
+  id: string;
+  name: string;
+  created_at: string;
+  header_url?: string;
+  footer_url?: string;
+  official_name?: string;
+  // Add other existing columns if known, but these are sufficient for now
+}
+
 export interface User {
   id: string;
   name: string;
@@ -110,9 +120,21 @@ export interface LegislativeOffice {
   year: string;
   recipient: string;
   subject: string;
-  status: 'Pendente' | 'Enviado' | 'Respondido';
+  status: 'Pendente' | 'Enviado' | 'Respondido' | 'Assinado';
   document_url?: string;
+  content_html?: string;
+  content_json?: any;
+  signed_at?: string;
+  signature_hash?: string;
   created_at?: string;
+}
+
+export interface DocTemplate {
+  id: string;
+  title: string;
+  type: string;
+  content_html?: string;
+  cabinet_id?: string;
 }
 
 export interface StatCardProps {

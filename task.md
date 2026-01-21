@@ -1,0 +1,25 @@
+# Task: Rich Text Editor Implementation (TDD)
+
+- [x] Install dependencies (`@tiptap/extension-underline`) <!-- id: 0 -->
+- [x] **RichTextEditor Component (TDD)** <!-- id: 1 -->
+    - [x] 🔴 RED: Create `components/RichTextEditor.test.tsx` (Fulfills Toolbar & A4 requirements) <!-- id: 2 -->
+    - [x] 🟢 GREEN: Create `components/RichTextEditor.tsx` (Implement TipTap, Toolbar, Styles) <!-- id: 3 -->
+    - [ ] 🔵 REFACTOR: Optimize component <!-- id: 4 -->
+- [x] **Integration & Refactor** <!-- id: 5 -->
+    - [x] Refactor `LegislativeEditor.tsx` to use `RichTextEditor` <!-- id: 6 -->
+    - [x] Update `Legislative.tsx` to support editing existing documents <!-- id: 7 -->
+    - [x] Ensure "Save" writes HTML and Plain Text (for search) <!-- id: 8 -->
+- [ ] **Verification** <!-- id: 9 -->
+    - [ ] Verify "New Document" flow with Templates <!-- id: 10 -->
+    - [ ] Verify "Edit Document" flow <!-- id: 11 -->
+- [x] **Refactor Critic** <!-- id: 12 -->
+    - [x] 🎨 CSS Fix: Add list styles to RichTextEditor <!-- id: 13 -->
+    - [x] 🔄 Navigation: Refactor handleEdit/handleView in Legislative <!-- id: 14 -->
+    - [x] 🏷️ Types: Implement OFFICIAL_TYPES constant <!-- id: 15 -->
+- [x] **Visual Identity (Vertical Slice)** <!-- id: 17 -->
+    - [x] 🗄️ DB: Add columns to `cabinets` <!-- id: 18 -->
+    - [x] ⚙️ Settings: Add 'Identidade Visual' tab & Upload <!-- id: 19 -->
+    - [x] 📝 Editor: Apply A4 branding (Header/Footer) <!-- id: 20 -->
+- [x] **Export to Word (.docx)** <!-- id: 21 -->
+    - [x] 📦 Install dependencies (`html-docx-js-typescript`, `file-saver`) <!-- id: 22 -->
+    - [x] 🧩 Implement Export Logic in `RichTextEditor` <!-- id: 23 -->
