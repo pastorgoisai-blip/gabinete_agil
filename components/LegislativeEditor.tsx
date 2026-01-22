@@ -37,7 +37,7 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
             if (!profile?.cabinet_id) return;
             const { data } = await supabase
                 .from('cabinets')
-                .select('header_url, footer_url, official_name')
+                .select('header_url, footer_url, official_name, use_letterhead')
                 .eq('id', profile.cabinet_id)
                 .single();
             if (data) setCabinet(data);
@@ -161,6 +161,29 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
         );
     }
 
+    const handleSaveTemplate = async () => {
+        if (!profile?.cabinet_id) return;
+
+        const templateName = prompt("Nome do novo Modelo:");
+        if (!templateName) return;
+
+        try {
+            const { error } = await supabase.from('doc_templates').insert([{
+                title: templateName,
+                type: 'Outros', // Default or could also prompt
+                content_html: content,
+                cabinet_id: profile.cabinet_id
+            }]);
+
+            if (error) throw error;
+            alert('Modelo salvo com sucesso! Ele aparecerá na lista de escolha.');
+            fetchTemplates(); // Refresh local list if needed
+        } catch (err) {
+            console.error('Error saving template:', err);
+            alert('Erro ao salvar modelo.');
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in flex flex-col h-screen">
             {/* Top Bar - Fixed */}
@@ -182,11 +205,11 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 px-4 pb-10 flex-1 overflow-hidden">
+            <div className="grid grid-cols-12 gap-6 px-4 pb-10 flex-1 overflow-hidden">
                 {/* Metadata Form - Sidebar */}
-                <div className="space-y-4 bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-200 dark:border-slate-700 h-fit overflow-y-auto">
+                <div className="col-span-12 lg:col-span-3 space-y-4 bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-200 dark:border-slate-700 h-fit overflow-y-auto">
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase">Número</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Número</label>
                         <input
                             value={meta.number}
                             onChange={e => setMeta({ ...meta, number: e.target.value })}
@@ -195,7 +218,7 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase">Ano</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Ano</label>
                         <input
                             value={meta.year}
                             onChange={e => setMeta({ ...meta, year: e.target.value })}
@@ -203,7 +226,7 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase">Destinatário</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Destinatário</label>
                         <input
                             value={meta.recipient}
                             onChange={e => setMeta({ ...meta, recipient: e.target.value })}
@@ -212,7 +235,7 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase">Assunto</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Assunto</label>
                         <textarea
                             value={meta.subject}
                             onChange={e => setMeta({ ...meta, subject: e.target.value })}
@@ -223,12 +246,13 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                 </div>
 
                 {/* Editor Area */}
-                <div className="overflow-y-auto h-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-900 relative">
+                <div className="col-span-12 lg:col-span-9 overflow-y-auto h-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-900 relative">
                     <RichTextEditor
                         content={content}
                         onChange={setContent}
-                        headerUrl={cabinet?.header_url}
-                        footerUrl={cabinet?.footer_url}
+                        headerUrl={cabinet?.use_letterhead ? cabinet.header_url : undefined}
+                        footerUrl={cabinet?.use_letterhead ? cabinet.footer_url : undefined}
+                        onSaveTemplate={handleSaveTemplate}
                     />
                 </div>
             </div>

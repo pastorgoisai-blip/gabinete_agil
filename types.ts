@@ -9,6 +9,8 @@ export interface Cabinet {
   header_url?: string;
   footer_url?: string;
   official_name?: string;
+  official_title?: string;
+  use_letterhead?: boolean;
   // Add other existing columns if known, but these are sufficient for now
 }
 

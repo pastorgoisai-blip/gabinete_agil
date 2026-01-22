@@ -23,6 +23,22 @@ Este guia orienta você na verificação da implementação do novo Editor de Te
 5.  **Salvar**: Clique em Salvar.
 6.  **Verificar Atualização**: Verifique a lista novamente; o documento não deve estar duplicado.
 
+
 ## 4. Verificar Busca
 1.  Use a barra de busca para procurar por uma palavra que você digitou no corpo do documento.
 2.  O documento deve aparecer nos resultados filtrados (se a palavra foi salva no `subject` ou correspondida via outros metadados).
+
+## 5. Verificar Identidade Visual e Configurações
+1.  Navegue até **Configurações** (engrenagem no menu lateral/inferior).
+2.  Clique na nova aba **Documentos Oficiais**.
+    - Verifique se aparecem os campos: **Nome Oficial**, **Cargo Oficial**.
+    - Verifique se aparece o card **Papel Timbrado Digital**.
+3.  **Configurar**:
+    - Preencha o Nome e Cargo.
+    - Ative o toggle "Ativar papel timbrado".
+    - Faça upload de uma imagem para o Cabeçalho e outra para o Rodapé.
+    - **Verificar Preview**: Veja se o preview A4 ao lado atualiza com suas imagens e textos.
+4.  **Salvar**: Clique em "Salvar Configurações" e verifique a mensagem de sucesso.
+5.  **Teste Final**:
+    - Vá em **Legislativo** > **Novo Documento**.
+    - O editor deve agora exibir suas imagens de cabeçalho e rodapé (se o `use_letterhead` estiver ativo).

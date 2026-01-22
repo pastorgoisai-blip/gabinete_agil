@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { LegislativeOffice } from '../types';
 import ImportLegislativeModal from '../components/ImportLegislativeModal';
 import ImportOfficesModal from '../components/ImportOfficesModal';
+import ImportWordModal from '../components/ImportWordModal';
 import Modal from '../components/Modal';
 import LegislativeEditor from '../components/LegislativeEditor';
 import DocumentPrintView from '../components/DocumentPrintView';
@@ -29,6 +30,7 @@ const Legislative: React.FC = () => {
 
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isWordImportOpen, setIsWordImportOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<LegislativeOffice | null>(null);
 
@@ -140,6 +142,12 @@ const Legislative: React.FC = () => {
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'protocol' ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Protocolo
+            </button>
+            <button
+              onClick={() => setIsWordImportOpen(true)}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" /> Importar do Word
             </button>
             <button
               onClick={() => setActiveTab('editor')}
@@ -351,6 +359,29 @@ const Legislative: React.FC = () => {
         onSuccess={() => {
           setIsImportModalOpen(false);
           fetchOffices();
+        }}
+      />
+
+      <ImportWordModal
+        isOpen={isWordImportOpen}
+        onClose={() => setIsWordImportOpen(false)}
+        onImport={(html) => {
+          // Create a partial office object to preload the editor
+          const draftOffice: LegislativeOffice = {
+            id: '', // Empty ID = New
+            cabinet_id: profile?.cabinet_id || '',
+            type: 'Ofício', // Default
+            number: '',
+            year: new Date().getFullYear().toString(),
+            status: 'Pendente',
+            recipient: '',
+            subject: 'Documento Importado do Word',
+            content_html: html,
+            created_at: new Date().toISOString()
+          };
+          setSelectedOffice(draftOffice);
+          setActiveTab('editor');
+          setIsWordImportOpen(false);
         }}
       />
     </div>

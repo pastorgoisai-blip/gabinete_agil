@@ -81,9 +81,16 @@ const Settings: React.FC = () => {
     }
   };
 
+  // Cabinet File State
+  const [headerFile, setHeaderFile] = useState<File | null>(null);
+  const [footerFile, setFooterFile] = useState<File | null>(null);
+
   const handleCabinetUpload = (field: 'header_url' | 'footer_url', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (field === 'header_url') setHeaderFile(file);
+      else setFooterFile(file);
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setCabinet((prev: any) => ({ ...prev, [field]: reader.result as string }));
@@ -98,30 +105,73 @@ const Settings: React.FC = () => {
     setTimeout(() => setShowSuccess(false), 3000);
   };
 
+  const uploadAsset = async (file: File, path: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${path}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('cabinet-assets')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('cabinet-assets')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
+
   const handleSaveCabinet = async () => {
     if (!cabinet || !authProfile?.cabinet_id) return;
     try {
+      let finalHeaderUrl = cabinet.header_url;
+      let finalFooterUrl = cabinet.footer_url;
+
+      // Upload Header if new file selected
+      if (headerFile) {
+        finalHeaderUrl = await uploadAsset(headerFile, `headers/${authProfile.cabinet_id}`);
+      }
+
+      // Upload Footer if new file selected
+      if (footerFile) {
+        finalFooterUrl = await uploadAsset(footerFile, `footers/${authProfile.cabinet_id}`);
+      }
+
       const { error } = await supabase
         .from('cabinets')
         .update({
           official_name: cabinet.official_name,
-          header_url: cabinet.header_url,
-          footer_url: cabinet.footer_url
+          official_title: cabinet.official_title,
+          header_url: finalHeaderUrl,
+          footer_url: finalFooterUrl,
+          use_letterhead: cabinet.use_letterhead
         })
         .eq('id', authProfile.cabinet_id);
 
       if (error) throw error;
+
+      // Update local state with new URLs (and clear files to avoid re-upload)
+      setCabinet(prev => ({
+        ...prev,
+        header_url: finalHeaderUrl,
+        footer_url: finalFooterUrl
+      }));
+      setHeaderFile(null);
+      setFooterFile(null);
+
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Error updating cabinet:', err);
-      alert('Erro ao atualizar identidade visual.');
+      alert('Erro ao atualizar identidade visual. Verifique se o bucket "cabinet-assets" existe e é público.');
     }
   };
 
   const tabs = [
     { id: 'profile', label: 'Perfil do Parlamentar', icon: User },
-    { id: 'visual', label: 'Identidade Visual', icon: FileText },
+    { id: 'documents', label: 'Documentos Oficiais', icon: FileText },
     { id: 'twilio', label: 'Integrações (API)', icon: MessageSquare },
     { id: 'fields', label: 'Personalizar CRM', icon: List },
     { id: 'link', label: 'Link Público', icon: QrCode },
@@ -241,83 +291,152 @@ const Settings: React.FC = () => {
             </div>
           )}
 
-          {/* VISUAL IDENTITY TAB */}
-          {activeTab === 'visual' && (
+          {/* DOCUMENTS (IDENTITY) TAB */}
+          {activeTab === 'documents' && (
             <div className="space-y-8 animate-fade-in">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Form */}
                 <div className="space-y-6">
-                  <div className="space-y-1">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Nome Oficial do Gabinete</label>
-                    <input
-                      className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
-                      value={cabinet?.official_name || ''}
-                      onChange={(e) => setCabinet({ ...cabinet, official_name: e.target.value })}
-                      placeholder="Ex: Gabinete do Vereador João Silva"
-                    />
-                    <p className="text-xs text-slate-500">Aparecerá nos documentos oficiais.</p>
-                  </div>
 
-                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-slate-700">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white">Cabeçalho (Header)</h3>
-                    <div className="flex items-center gap-4">
-                      {cabinet?.header_url ? (
-                        <img src={cabinet.header_url} alt="Header" className="h-20 w-auto border rounded" />
-                      ) : (
-                        <div className="h-20 w-full border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-slate-400 text-sm">Sem imagem</div>
-                      )}
-                      <label className="cursor-pointer bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                        <Upload className="w-4 h-4" /> Alterar
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCabinetUpload('header_url', e)} />
-                      </label>
+                  {/* Card Identidade */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl space-y-4">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-primary-600" />
+                      Identidade do Parlamentar
+                    </h3>
+
+                    <div className="space-y-1">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Nome Oficial</label>
+                      <input
+                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
+                        value={cabinet?.official_name || ''}
+                        onChange={(e) => setCabinet({ ...cabinet, official_name: e.target.value })}
+                        placeholder="Ex: Gabinete do Vereador João Silva"
+                      />
+                      <p className="text-xs text-slate-500">Usado em cabeçalhos de documentos oficiais.</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Cargo Oficial</label>
+                      <input
+                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
+                        value={cabinet?.official_title || ''}
+                        onChange={(e) => setCabinet({ ...cabinet, official_title: e.target.value })}
+                        placeholder="Ex: Vereador, Presidente da Câmara, Deputado"
+                      />
                     </div>
                   </div>
 
-                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-slate-700">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white">Rodapé (Footer)</h3>
-                    <div className="flex items-center gap-4">
-                      {cabinet?.footer_url ? (
-                        <img src={cabinet.footer_url} alt="Footer" className="h-20 w-auto border rounded" />
-                      ) : (
-                        <div className="h-20 w-full border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-slate-400 text-sm">Sem imagem</div>
-                      )}
-                      <label className="cursor-pointer bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                        <Upload className="w-4 h-4" /> Alterar
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCabinetUpload('footer_url', e)} />
-                      </label>
+                  {/* Card Papel Timbrado */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl space-y-6">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      Papel Timbrado Digital
+                    </h3>
+
+                    <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={cabinet?.use_letterhead || false}
+                        onChange={(e) => setCabinet({ ...cabinet, use_letterhead: e.target.checked })}
+                        className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                      />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Ativar papel timbrado digital em documentos gerados
+                      </span>
+                    </label>
+
+                    <div className="space-y-4 pt-2">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Imagem do Cabeçalho (Header)</label>
+                        <span className="text-xs text-slate-400">Recomendado: 2480x350px (PNG)</span>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        {cabinet?.header_url ? (
+                          <img src={cabinet.header_url} alt="Header" className="h-16 w-auto border rounded bg-white object-contain" />
+                        ) : (
+                          <div className="h-16 w-32 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-slate-400 text-xs">Sem imagem</div>
+                        )}
+                        <label className="cursor-pointer bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                          <Upload className="w-4 h-4" /> Escolher Arquivo
+                          <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCabinetUpload('header_url', e)} />
+                        </label>
+                      </div>
                     </div>
+
+                    <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Imagem do Rodapé (Footer)</label>
+                        <span className="text-xs text-slate-400">Recomendado: 2480x100px (PNG)</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {cabinet?.footer_url ? (
+                          <img src={cabinet.footer_url} alt="Footer" className="h-16 w-auto border rounded bg-white object-contain" />
+                        ) : (
+                          <div className="h-16 w-32 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-slate-400 text-xs">Sem imagem</div>
+                        )}
+                        <label className="cursor-pointer bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                          <Upload className="w-4 h-4" /> Escolher Arquivo
+                          <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCabinetUpload('footer_url', e)} />
+                        </label>
+                      </div>
+                    </div>
+
                   </div>
 
                   <button
                     onClick={handleSaveCabinet}
                     className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-primary-600/20 transition-colors flex items-center justify-center gap-2 mt-6"
                   >
-                    <Save className="w-5 h-5" /> Salvar Identidade Visual
+                    <Save className="w-5 h-5" /> Salvar Configurações
                   </button>
                 </div>
 
                 {/* Preview A4 */}
-                <div className="bg-gray-100 dark:bg-slate-900 p-6 rounded-xl flex items-center justify-center">
+                <div className="bg-gray-100 dark:bg-slate-900/50 p-6 rounded-xl flex items-center justify-center border border-slate-200 dark:border-slate-800">
                   <div
-                    className="bg-white text-black shadow-xl relative flex flex-col justify-between overflow-hidden"
-                    style={{ width: '210mm', height: '297mm', transform: 'scale(0.4)', transformOrigin: 'top center' }}
+                    className="bg-white text-black shadow-2xl relative flex flex-col justify-between overflow-hidden transition-all duration-300"
+                    style={{
+                      width: '210mm',
+                      height: '297mm',
+                      transform: 'scale(0.45)',
+                      transformOrigin: 'top center',
+                      opacity: cabinet?.use_letterhead ? 1 : 0.7
+                    }}
                   >
                     {/* Header Preview */}
                     {cabinet?.header_url && (
-                      <img src={cabinet.header_url} className="absolute top-0 left-0 w-full h-auto max-h-[150px] object-contain" alt="Header" />
+                      <div className="w-full h-auto min-h-[50px]">
+                        <img src={cabinet.header_url} className="w-full h-auto object-cover" alt="Header" />
+                      </div>
                     )}
 
-                    <div className="p-16 mt-20 text-justify">
-                      <h1 className="text-2xl font-bold text-center mb-4">{cabinet?.official_name || 'Nome do Gabinete'}</h1>
-                      <p className="mb-4">Este é um exemplo de visualização do documento com a identidade visual aplicada.</p>
-                      <p>O cabeçalho ficará fixo no topo e o rodapé na parte inferior da página.</p>
-                      <br />
-                      <p className="text-gray-400">[Conteúdo do Documento...]</p>
+                    <div className="p-16 flex-1 text-justify">
+                      <div className="text-center mb-8">
+                        <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-wider mb-1">{cabinet?.official_name || 'NOME DO PARLAMENTAR'}</h1>
+                        <h2 className="text-lg font-serif text-gray-600 uppercase">{cabinet?.official_title || 'Cargo Oficial'}</h2>
+                      </div>
+
+                      <div className="space-y-4 text-gray-800 font-serif leading-relaxed">
+                        <p>Excelentíssimo Senhor Presidente,</p>
+                        <p>O <b>{cabinet?.official_title || 'Cargo'} {cabinet?.official_name || 'Nome'}</b> vem por meio deste apresentar o modelo de documento oficial configurado no sistema Gabinete Ágil.</p>
+                        <p>Este documento exemplifica como o papel timbrado, cabeçalho e rodapé serão aplicados em Ofícios, Projetos de Lei e Requerimentos gerados automaticamente pelo sistema.</p>
+                        <p>Atenciosamente,</p>
+                      </div>
+
+                      <div className="mt-16 text-center">
+                        <div className="inline-block border-t border-black w-64 pt-2 font-serif">
+                          {cabinet?.official_name || 'Assinatura'}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Footer Preview */}
                     {cabinet?.footer_url && (
-                      <img src={cabinet.footer_url} className="absolute bottom-0 left-0 w-full h-auto max-h-[100px] object-contain" alt="Footer" />
+                      <div className="w-full h-auto min-h-[30px]">
+                        <img src={cabinet.footer_url} className="w-full h-auto object-cover" alt="Footer" />
+                      </div>
                     )}
                   </div>
                 </div>
