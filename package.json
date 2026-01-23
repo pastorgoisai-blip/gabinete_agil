@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@onlyoffice/document-editor-react": "^2.1.1",
     "@supabase/supabase-js": "^2.90.1",
     "@tiptap/core": "^3.16.0",
     "@tiptap/extension-character-count": "^3.16.0",
