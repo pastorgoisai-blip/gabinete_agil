@@ -1,15 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { z } from "https://esm.sh/zod@v3.22.4";
 
 const ONLYOFFICE_SECRET = Deno.env.get("ONLYOFFICE_SECRET") || "aPhy0uaKC088CEiZFfxOGY9ibFgDDy8q";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-interface RequestBody {
-    file_id: string;
-    file_name: string;
-    file_ext: string;
-}
+const RequestSchema = z.object({
+    file_id: z.string().min(1, "File ID is required"),
+    file_name: z.string().min(1, "File name is required"),
+    file_ext: z.string().min(1, "File extension is required"),
+});
+
+type RequestBody = z.infer<typeof RequestSchema>;
 
 // Helper: Generate JWT manually (Deno-compatible)
 async function generateJWT(payload: any, secret: string): Promise<string> {
@@ -70,11 +73,14 @@ serve(async (req) => {
         if (authError || !user) throw new Error("Unauthorized");
 
         // 2. Parse request
-        const { file_id, file_name, file_ext }: RequestBody = await req.json();
+        const body = await req.json();
+        const validation = RequestSchema.safeParse(body);
 
-        if (!file_id || !file_name || !file_ext) {
-            throw new Error("Missing required fields: file_id, file_name, file_ext");
+        if (!validation.success) {
+            throw new Error(`Validation Error: ${validation.error.issues.map(i => i.message).join(", ")}`);
         }
+
+        const { file_id, file_name, file_ext } = validation.data;
 
         // 3. Security: Verify user owns this cabinet
         const cabinet_id = file_id.split('/')[0];

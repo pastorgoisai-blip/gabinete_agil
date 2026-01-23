@@ -8,9 +8,11 @@ import ImportWordModal from '../components/ImportWordModal';
 import Modal from '../components/Modal';
 import LegislativeEditor from '../components/LegislativeEditor';
 import DocumentPrintView from '../components/DocumentPrintView';
+import OnlyOfficeEditor from '../components/OnlyOfficeEditor';
 import {
   FileText, Plus, Search, Eye, Edit, Trash2, Download, UploadCloud,
-  FileSpreadsheet, RefreshCw, Calendar, Briefcase, Filter, Mail, Send
+  FileSpreadsheet, RefreshCw, Calendar, Briefcase, Filter, Mail, Send,
+  FileEdit, X, ExternalLink
 } from 'lucide-react';
 
 const OFFICIAL_TYPES = [
@@ -40,7 +42,7 @@ const Legislative: React.FC = () => {
   const [filterType, setFilterType] = useState('Todos');
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'protocol' | 'editor' | 'print'>('protocol');
+  const [activeTab, setActiveTab] = useState<'protocol' | 'editor' | 'print' | 'onlyoffice'>('protocol');
 
   const fetchOffices = async () => {
     if (!profile?.cabinet_id) return;
@@ -93,11 +95,6 @@ const Legislative: React.FC = () => {
   const statusOptions = ['Pendente', 'Enviado', 'Respondido'];
 
   // CRUD Handlers
-  const activeTabClass = (tab: string) =>
-    `px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab
-      ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
-      : 'text-slate-500 hover:text-slate-700'}`;
-
   const handleEdit = (office: LegislativeOffice) => {
     setSelectedOffice(office);
     setActiveTab('editor');
@@ -106,6 +103,11 @@ const Legislative: React.FC = () => {
   const handleView = (office: LegislativeOffice) => {
     setSelectedOffice(office);
     setActiveTab('print');
+  };
+
+  const handleEditOnlyOffice = (office: LegislativeOffice) => {
+    setSelectedOffice(office);
+    setActiveTab('onlyoffice');
   };
 
   const handleDelete = async () => {
@@ -119,6 +121,12 @@ const Legislative: React.FC = () => {
       console.error('Error deleting office:', err);
       alert('Erro ao excluir ofício.');
     }
+  };
+
+  const handleCloseEditor = () => {
+    setActiveTab('protocol');
+    setSelectedOffice(null);
+    fetchOffices(); // Refresh list to get updated document
   };
 
   return (
@@ -138,8 +146,14 @@ const Legislative: React.FC = () => {
         <div className="flex gap-2">
           <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-lg">
             <button
-              onClick={() => setActiveTab('protocol')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'protocol' ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => {
+                setActiveTab('protocol');
+                setSelectedOffice(null);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'protocol'
+                  ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
+                  : 'text-slate-500 hover:text-slate-700'
+                }`}
             >
               Protocolo
             </button>
@@ -150,8 +164,14 @@ const Legislative: React.FC = () => {
               <FileText className="w-4 h-4" /> Importar do Word
             </button>
             <button
-              onClick={() => setActiveTab('editor')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'editor' ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => {
+                setSelectedOffice(null);
+                setActiveTab('editor');
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'editor'
+                  ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
+                  : 'text-slate-500 hover:text-slate-700'
+                }`}
             >
               Novo Documento
             </button>
@@ -159,31 +179,60 @@ const Legislative: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'editor' ? (
+      {/* EDITOR TIPTAP */}
+      {activeTab === 'editor' && (
         <LegislativeEditor
           initialData={selectedOffice}
-          onCancel={() => {
-            setActiveTab('protocol');
-            setSelectedOffice(null);
-          }}
-          onSaveSuccess={() => {
-            setActiveTab('protocol');
-            fetchOffices();
-            setSelectedOffice(null);
-          }}
+          onCancel={handleCloseEditor}
+          onSaveSuccess={handleCloseEditor}
         />
-      ) : activeTab === 'print' && selectedOffice ? (
+      )}
+
+      {/* PRINT VIEW */}
+      {activeTab === 'print' && selectedOffice && (
         <DocumentPrintView
           document={selectedOffice}
-          onBack={() => {
-            setActiveTab('protocol');
-            setSelectedOffice(null);
-          }}
-          onUpdate={() => {
-            fetchOffices();
-          }}
+          onBack={handleCloseEditor}
+          onUpdate={fetchOffices}
         />
-      ) : (
+      )}
+
+      {/* ONLYOFFICE EDITOR */}
+      {activeTab === 'onlyoffice' && selectedOffice?.document_url && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden border border-gray-200 dark:border-slate-700">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <FileEdit className="w-6 h-6" />
+              <div>
+                <h2 className="text-xl font-bold">Editor Colaborativo OnlyOffice</h2>
+                <p className="text-sm opacity-90">
+                  {selectedOffice.type || 'Ofício'} nº {selectedOffice.number}/{selectedOffice.year}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleCloseEditor}
+              className="p-2 hover:bg-purple-800 rounded-lg transition-colors"
+              title="Fechar Editor"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* OnlyOffice Component */}
+          <OnlyOfficeEditor
+            fileId={selectedOffice.document_url}
+            fileName={`${selectedOffice.type || 'Oficio'}_${selectedOffice.number}_${selectedOffice.year}.docx`}
+            fileExt="docx"
+            onClose={handleCloseEditor}
+            onSave={fetchOffices}
+          />
+        </div>
+      )}
+
+      {/* PROTOCOL LIST */}
+      {activeTab === 'protocol' && (
         <>
           <div className="flex justify-end gap-2 mb-4">
             <button
@@ -198,7 +247,7 @@ const Legislative: React.FC = () => {
               onClick={() => setIsImportModalOpen(true)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5"
             >
-              <UploadCloud className="w-5 h-5" /> <span className="hidden sm:inline">Importar</span>
+              <UploadCloud className="w-5 h-5" /> <span className="hidden sm:inline">Importar Excel</span>
             </button>
           </div>
 
@@ -247,14 +296,14 @@ const Legislative: React.FC = () => {
                 </select>
               </div>
 
-              <div className="col-span-2 space-y-1">
+              <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Buscar</label>
                 <div className="relative">
                   <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full bg-gray-50 dark:bg-slate-700 border-gray-200 dark:border-slate-600 rounded-lg text-sm pl-10 px-3 py-2 focus:ring-primary-500 focus:border-primary-500 text-slate-700 dark:text-slate-200 outline-none"
-                    placeholder="Busque por destinatário, assunto ou número..."
+                    placeholder="Busque por destinatário, assunto..."
                   />
                   <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
                 </div>
@@ -296,6 +345,21 @@ const Legislative: React.FC = () => {
 
                     <div className="flex flex-col sm:items-end gap-3 w-full sm:w-auto mt-2 sm:mt-0">
                       <div className="flex items-center gap-1 bg-gray-50 dark:bg-slate-700/50 p-1 rounded-lg border border-gray-100 dark:border-slate-600">
+                        {/* OnlyOffice Editor Button (Purple) */}
+                        {doc.document_url && (
+                          <button
+                            className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors group relative"
+                            title="Editar no OnlyOffice"
+                            onClick={() => handleEditOnlyOffice(doc)}
+                          >
+                            <FileEdit className="w-5 h-5" />
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              OnlyOffice
+                            </span>
+                          </button>
+                        )}
+
+                        {/* Download Original */}
                         {doc.document_url && (
                           <button
                             className="p-1.5 text-gray-400 hover:text-green-600 transition-colors"
@@ -305,6 +369,8 @@ const Legislative: React.FC = () => {
                             <Download className="w-5 h-5" />
                           </button>
                         )}
+
+                        {/* View HTML */}
                         {doc.content_html && (
                           <button
                             className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
@@ -314,16 +380,23 @@ const Legislative: React.FC = () => {
                             <FileText className="w-5 h-5" />
                           </button>
                         )}
+
                         <div className="w-px h-4 bg-gray-300 dark:bg-slate-600 mx-1"></div>
+
+                        {/* Edit TipTap */}
                         <button
                           onClick={() => handleEdit(doc)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Editar (TipTap)"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
+
+                        {/* Delete */}
                         <button
                           onClick={() => { setSelectedOffice(doc); setIsDeleteOpen(true); }}
                           className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Excluir"
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
@@ -366,11 +439,10 @@ const Legislative: React.FC = () => {
         isOpen={isWordImportOpen}
         onClose={() => setIsWordImportOpen(false)}
         onImport={(html) => {
-          // Create a partial office object to preload the editor
           const draftOffice: LegislativeOffice = {
-            id: '', // Empty ID = New
+            id: '',
             cabinet_id: profile?.cabinet_id || '',
-            type: 'Ofício', // Default
+            type: 'Ofício',
             number: '',
             year: new Date().getFullYear().toString(),
             status: 'Pendente',
