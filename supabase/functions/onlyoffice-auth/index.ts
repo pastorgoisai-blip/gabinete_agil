@@ -1,110 +1,167 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { create__ } from "https://deno.land/x/djwt@v2.8/mod.ts"; // hypothetical import for simpler JWT or use web standard
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
-// We will use standard Web Crypto API for HMAC SHA256 signature if djwt is complex to import in this env
-// or stick to a simple JWT library available in Deno.
-import { create, getNumericDate, Header, Payload } from "https://deno.land/x/djwt@v2.8/mod.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
+const ONLYOFFICE_SECRET = Deno.env.get("ONLYOFFICE_SECRET") || "aPhy0uaKC088CEiZFfxOGY9ibFgDDy8q";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+interface RequestBody {
+    file_id: string;
+    file_name: string;
+    file_ext: string;
+}
+
+// Helper: Generate JWT manually (Deno-compatible)
+async function generateJWT(payload: any, secret: string): Promise<string> {
+    const header = { alg: "HS256", typ: "JWT" };
+
+    const encodedHeader = btoa(JSON.stringify(header))
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+
+    const encodedPayload = btoa(JSON.stringify(payload))
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+
+    const message = `${encodedHeader}.${encodedPayload}`;
+
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+    );
+
+    const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+
+    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+
+    return `${message}.${encodedSignature}`;
+}
 
 serve(async (req) => {
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
+    // CORS Headers
+    if (req.method === "OPTIONS") {
+        return new Response(null, {
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+            },
+        });
     }
 
     try {
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-        );
+        // 1. Authenticate user
+        const authHeader = req.headers.get("Authorization");
+        if (!authHeader) throw new Error("Missing Authorization header");
 
-        // 1. Get User
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+            global: { headers: { Authorization: authHeader } },
+        });
 
-        if (!user) throw new Error('Unauthorized');
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) throw new Error("Unauthorized");
 
-        // 2. Parse Request
-        const { file_id, file_name, file_ext } = await req.json();
+        // 2. Parse request
+        const { file_id, file_name, file_ext }: RequestBody = await req.json();
 
-        // 3. Get User Profile for Name
-        const { data: profile } = await supabase
+        if (!file_id || !file_name || !file_ext) {
+            throw new Error("Missing required fields: file_id, file_name, file_ext");
+        }
+
+        // 3. Security: Verify user owns this cabinet
+        const cabinet_id = file_id.split('/')[0];
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('name, cabinet_id')
+            .select('cabinet_id')
             .eq('id', user.id)
             .single();
 
-        if (!profile) throw new Error('Profile not found');
+        if (profileError || !profile) throw new Error("Profile not found");
+        if (profile.cabinet_id !== cabinet_id) throw new Error("Access Denied: Cabinet mismatch");
 
-        // 4. Generate Signed URL for the file (Read)
-        // Assuming file_id is the storage path
-        const { data: signedData, error: signError } = await supabase
-            .storage
-            .from('legislative-documents')
-            .createSignedUrl(file_id, 60 * 60 * 24); // 24 hours
+        // 4. Generate signed URL for download (OnlyOffice will fetch the file)
+        const { data: downloadData, error: downloadError } = await supabase.storage
+            .from("legislative-documents") // FIXED: Changed 'documents' to 'legislative-documents' based on previous context
+            .createSignedUrl(file_id, 3600); // 1 hour validity
 
-        if (signError) throw signError;
+        if (downloadError) throw new Error(`Storage error: ${downloadError.message}`);
 
-        // 5. Generate ONLYOFFICE Token
-        const secret = Deno.env.get('ONLYOFFICE_SECRET');
-        if (!secret) throw new Error('ONLYOFFICE_SECRET not set');
+        // 5. Generate callback URL
+        const callbackUrl = `${SUPABASE_URL}/functions/v1/onlyoffice-callback?file_id=${encodeURIComponent(file_id)}&user_id=${user.id}`;
 
-        const key = `${file_id}_${Date.now()}`; // Unique key to force refresh
-        const fileUrl = signedData.signedUrl;
+        // 6. Create unique document key
+        const documentKey = `${user.id}_${file_id.replace(/\//g, '_')}_${Date.now()}`;
 
-        // Callback URL needs to be publicly accessible. 
-        // Assuming Supabase Functions URL pattern.
-        const projectRef = Deno.env.get('SUPABASE_URL')?.split('.')[0].split('//')[1];
-        const callbackUrl = `https://${projectRef}.supabase.co/functions/v1/onlyoffice-callback?file_id=${encodeURIComponent(file_id)}&user_id=${user.id}`;
+        // 7. Generate JWT token
+        const jwtPayload = {
+            url: downloadData.signedUrl,
+            callback: callbackUrl,
+            key: documentKey,
+        };
 
-        const configPayload = {
+        const token = await generateJWT(jwtPayload, ONLYOFFICE_SECRET);
+
+        // 8. Build OnlyOffice config
+        const config = {
             document: {
-                fileType: file_ext || 'docx',
-                key: key,
-                title: file_name || 'Documento',
-                url: fileUrl,
+                fileType: file_ext.replace('.', ''),
+                key: documentKey,
+                title: file_name,
+                url: downloadData.signedUrl,
+                permissions: {
+                    edit: true,
+                    download: true,
+                    print: true,
+                    review: true,
+                },
             },
-            documentType: 'word', // Simplified logic, should detect based on ext
+            documentType: "word",
             editorConfig: {
                 callbackUrl: callbackUrl,
                 user: {
                     id: user.id,
-                    name: profile.name,
+                    name: user.email || user.user_metadata?.name || "Usuário",
                 },
-                mode: 'edit',
+                customization: {
+                    autosave: true,
+                    forcesave: true,
+                    comments: true,
+                    chat: false,
+                },
+                lang: "pt-BR",
             },
+            token: token,
         };
 
-        // Sign the token
-        const cryptoKey = await crypto.subtle.importKey(
-            "raw",
-            new TextEncoder().encode(secret),
-            { name: "HMAC", hash: "SHA-256" },
-            false,
-            ["sign"]
-        );
+        return new Response(JSON.stringify(config), {
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+            },
+        });
 
-        // Manual JWT creation to ensure compatibility if lib fails, or use lib
-        const jwt = await create({ alg: "HS256", typ: "JWT" }, configPayload, cryptoKey);
-
+    } catch (error: any) {
+        console.error("OnlyOffice Auth Error:", error);
         return new Response(
             JSON.stringify({
-                ...configPayload,
-                token: jwt,
+                error: error.message || "Internal server error",
+                details: error.toString()
             }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            {
+                status: 400,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                },
+            }
         );
-
-    } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
     }
 });
