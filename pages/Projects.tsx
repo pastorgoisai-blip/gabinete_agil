@@ -85,7 +85,7 @@ const Projects: React.FC = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('legislative_matters')
+        .from('legislative_projects')
         .select('*')
         .eq('cabinet_id', profile.cabinet_id)
         .order('created_at', { ascending: false });
@@ -156,33 +156,57 @@ const Projects: React.FC = () => {
   const handleSaveProject = async () => {
     if (!formData.number || !formData.summary || !profile?.cabinet_id) return;
 
-    // TODO: Implement file upload to Supabase Storage if files are present
-    // For now, we will handle text data.
+    let finalPdfUrl = formData.pdf_url;
 
-    // Construct payload for legislative_matters table
+    // Upload file if present
+    if (formData.files.length > 0) {
+      const file = formData.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.cabinet_id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('legislative-documents')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('legislative-documents')
+          .getPublicUrl(fileName);
+
+        finalPdfUrl = publicUrl;
+      } catch (error) {
+        console.error('Erro no upload:', error);
+        alert('Erro ao fazer upload do arquivo. Tente novamente.');
+        return;
+      }
+    }
+
+    // Construct payload for legislative_projects table
     const payload = {
       cabinet_id: profile.cabinet_id,
       type_description: formData.type,
-      type_acronym: formData.type.substring(0, 3).toUpperCase(), // Simple acronym generation
+      type_acronym: formData.type.substring(0, 3).toUpperCase(),
       number: parseInt(formData.number) || 0,
       year: parseInt(formData.year) || new Date().getFullYear(),
       authors: formData.author,
       description: formData.summary,
       status: formData.status,
-      // pdf_url: ... (would come from storage upload)
+      pdf_url: finalPdfUrl
     };
 
     try {
       if (isEditing && selectedProject) {
         const { error } = await supabase
-          .from('legislative_matters')
+          .from('legislative_projects')
           .update(payload)
           .eq('id', selectedProject.id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('legislative_matters')
+          .from('legislative_projects')
           .insert([payload]);
 
         if (error) throw error;
@@ -200,7 +224,7 @@ const Projects: React.FC = () => {
     if (selectedProject) {
       try {
         const { error } = await supabase
-          .from('legislative_matters')
+          .from('legislative_projects')
           .delete()
           .eq('id', selectedProject.id);
 

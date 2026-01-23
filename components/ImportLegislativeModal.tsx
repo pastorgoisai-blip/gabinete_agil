@@ -46,7 +46,7 @@ const ImportLegislativeModal: React.FC<ImportLegislativeModalProps> = ({ isOpen,
                 } else {
                     alert("Formato JSON inválido. Esperado array ou objeto com chave 'results'.");
                 }
-            } else if (fileExt === 'xlsx' || fileExt === 'xls') {
+            } else if (fileExt === 'xlsx' || fileExt === 'xls' || fileExt === 'csv') {
                 const data = await fileToParse.arrayBuffer();
                 const workbook = XLSX.read(data);
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -54,7 +54,7 @@ const ImportLegislativeModal: React.FC<ImportLegislativeModalProps> = ({ isOpen,
                 setPreviewData(jsonData);
                 setStep('preview');
             } else {
-                alert('Formato não suportado. Use JSON ou XLSX.');
+                alert('Formato não suportado. Use JSON, Excel ou CSV.');
             }
         } catch (error) {
             console.error(error);
@@ -83,20 +83,21 @@ const ImportLegislativeModal: React.FC<ImportLegislativeModalProps> = ({ isOpen,
             const toInsert = batch.map(row => ({
                 cabinet_id: profile.cabinet_id,
                 external_id: row.id?.toString() || row.ID?.toString(),
-                year: parseInt(row.ano || row.Ano || '0'),
+                year: parseInt(row.ano || row.Ano || '2026'),
                 number: parseInt(row.numero || row.Numero || '0'),
-                type_acronym: row.tipo__sigla || row.Sigla,
-                type_description: row.tipo__descricao || row.Tipo,
-                authors: row.autoria || row.Autoria,
-                pdf_url: row.texto_original || row.Link,
-                description: row.ementa || row.Ementa || row.Descricao,
-                status: 'filed'
+                type_acronym: (row.tipo__sigla || row.Sigla || 'OUT').substring(0, 5).toUpperCase(),
+                type_description: row.tipo__descricao || row.Tipo || 'Outros',
+                authors: row.autoria || row.Autoria || 'Gabinete',
+                pdf_url: row.texto_original || row.Link || '',
+                description: row.ementa || row.Ementa || row.Descricao || '',
+                status: row.status || row.Status || 'Em Tramitação'
             }));
 
-            const { error } = await supabase.from('legislative_matters').insert(toInsert);
+            const { error } = await supabase.from('legislative_projects').insert(toInsert);
 
             if (error) {
                 errorCount += batch.length;
+                console.error('Batch error:', error);
                 setImportLog(prev => [...prev, { status: 'error', msg: `Erro lote ${i}: ${error.message}` }]);
             } else {
                 successCount += batch.length;
@@ -127,7 +128,7 @@ const ImportLegislativeModal: React.FC<ImportLegislativeModalProps> = ({ isOpen,
                             type="file"
                             ref={fileInputRef}
                             className="hidden"
-                            accept=".json,.xlsx,.xls"
+                            accept=".json,.xlsx,.xls,.csv"
                             onChange={handleFileChange}
                         />
                         <Upload className="mx-auto h-12 w-12 text-gray-400" />
@@ -185,10 +186,26 @@ const ImportLegislativeModal: React.FC<ImportLegislativeModalProps> = ({ isOpen,
 
                 {step === 'result' && (
                     <div className="text-center py-6 space-y-4">
-                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
-                        <h3 className="text-xl font-bold text-gray-900">Importação Concluída!</h3>
+                        {progress.error > 0 ? (
+                            <AlertTriangle className="w-16 h-16 text-red-500 mx-auto" />
+                        ) : (
+                            <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
+                        )}
+                        <h3 className="text-xl font-bold text-gray-900">
+                            {progress.error > 0 ? 'Importação Concluída com Erros' : 'Importação Concluída!'}
+                        </h3>
                         <p>{progress.success} itens importados com sucesso.</p>
-                        {progress.error > 0 && <p className="text-red-500">{progress.error} erros encontrados.</p>}
+                        {progress.error > 0 && (
+                            <div className="text-left bg-red-50 p-4 rounded-lg border border-red-200 mt-4 max-h-60 overflow-y-auto">
+                                <p className="font-bold text-red-700 mb-2">{progress.error} erros encontrados:</p>
+                                <ul className="list-disc list-inside text-xs text-red-600 space-y-1">
+                                    {importLog.slice(0, 10).map((log, idx) => (
+                                        <li key={idx}>{log.msg}</li>
+                                    ))}
+                                    {importLog.length > 10 && <li>... e mais {importLog.length - 10} erros.</li>}
+                                </ul>
+                            </div>
+                        )}
                         <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 rounded-lg">Fechar</button>
                     </div>
                 )}

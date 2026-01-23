@@ -17,7 +17,7 @@ const generateUUID = () => {
 };
 
 // 🔧 CONFIGURE: Atualize esta URL com o webhook do seu n8n
-const N8N_WEBHOOK_URL = 'https://n8n.gabineteonline.online/webhook/copilot-gabinete';
+const N8N_WEBHOOK_URL = 'https://n8n.gabineteonline.online/webhook-test/copilot-gabinete';
 
 // Quick actions pré-configurados
 const QUICK_ACTIONS = [
@@ -203,8 +203,8 @@ const CopilotWidget: React.FC = () => {
       <button
         onClick={toggleOpen}
         className={`fixed bottom-6 right-6 z-50 p-0 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${isOpen
-            ? 'bg-slate-800 text-slate-400 rotate-90'
-            : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white animate-bounce-slow'
+          ? 'bg-slate-800 text-slate-400 rotate-90'
+          : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white animate-bounce-slow'
           }`}
         title="Abrir Copilot (Ctrl+K)"
       >
@@ -249,8 +249,8 @@ const CopilotWidget: React.FC = () => {
             <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.type === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-sm'
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-bl-sm'
+                  ? 'bg-indigo-600 text-white rounded-br-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-bl-sm'
                   }`}
               >
                 <div className="whitespace-pre-wrap">{msg.text}</div>
