@@ -4,6 +4,7 @@ import { z } from "https://esm.sh/zod@v3.22.4";
 
 const ONLYOFFICE_SECRET = Deno.env.get("ONLYOFFICE_SECRET") || "aPhy0uaKC088CEiZFfxOGY9ibFgDDy8q";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const RequestSchema = z.object({
@@ -61,16 +62,28 @@ serve(async (req) => {
     }
 
     try {
+        console.log("[DEBUG] OnlyOffice Auth Request Received");
+
         // 1. Authenticate user
         const authHeader = req.headers.get("Authorization");
         if (!authHeader) throw new Error("Missing Authorization header");
 
-        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+        const token = authHeader.replace("Bearer ", "");
+
+        // Use Anon Key for user validation
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             global: { headers: { Authorization: authHeader } },
         });
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) throw new Error("Unauthorized");
+        // Explicitly pass token
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        if (authError || !user) {
+            console.error("[DEBUG] Auth failed:", authError);
+            throw new Error("Unauthorized: Invalid Session");
+        }
+
+        console.log("[DEBUG] User authenticated:", user.id);
 
         // 2. Parse request
         const body = await req.json();
@@ -84,7 +97,12 @@ serve(async (req) => {
 
         // 3. Security: Verify user owns this cabinet
         const cabinet_id = file_id.split('/')[0];
-        const { data: profile, error: profileError } = await supabase
+
+        // Use Service Key for database/storage access to ensure we can read what we need
+        // (Though RLS should allow reading own profile, explicit admin client is safer here if policies are complex)
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+        const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
             .select('cabinet_id')
             .eq('id', user.id)
@@ -94,8 +112,8 @@ serve(async (req) => {
         if (profile.cabinet_id !== cabinet_id) throw new Error("Access Denied: Cabinet mismatch");
 
         // 4. Generate signed URL for download (OnlyOffice will fetch the file)
-        const { data: downloadData, error: downloadError } = await supabase.storage
-            .from("legislative-documents") // FIXED: Changed 'documents' to 'legislative-documents' based on previous context
+        const { data: downloadData, error: downloadError } = await supabaseAdmin.storage
+            .from("legislative-documents")
             .createSignedUrl(file_id, 3600); // 1 hour validity
 
         if (downloadError) throw new Error(`Storage error: ${downloadError.message}`);
@@ -106,17 +124,9 @@ serve(async (req) => {
         // 6. Create unique document key
         const documentKey = `${user.id}_${file_id.replace(/\//g, '_')}_${Date.now()}`;
 
-        // 7. Generate JWT token
-        const jwtPayload = {
-            url: downloadData.signedUrl,
-            callback: callbackUrl,
-            key: documentKey,
-        };
-
-        const token = await generateJWT(jwtPayload, ONLYOFFICE_SECRET);
-
-        // 8. Build OnlyOffice config
-        const config = {
+        // 8. Build Base OnlyOffice config (WITHOUT TOKEN)
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const configPayload = {
             document: {
                 fileType: file_ext.replace('.', ''),
                 key: documentKey,
@@ -144,10 +154,20 @@ serve(async (req) => {
                 },
                 lang: "pt-BR",
             },
-            token: token,
+            iat: currentTimestamp,
+            exp: currentTimestamp + 120, // 2 minutes expiration
         };
 
-        return new Response(JSON.stringify(config), {
+        // 9. Generate JWT token covering the entire config
+        const tokenOnlyOffice = await generateJWT(configPayload, ONLYOFFICE_SECRET);
+
+        // 10. Return valid config with token
+        const finalConfig = {
+            ...configPayload,
+            token: tokenOnlyOffice,
+        };
+
+        return new Response(JSON.stringify(finalConfig), {
             headers: {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*",
@@ -162,7 +182,7 @@ serve(async (req) => {
                 details: error.toString()
             }),
             {
-                status: 400,
+                status: 200, // Return 200 to allow client parsing
                 headers: {
                     "Content-Type": "application/json",
                     "Access-Control-Allow-Origin": "*",

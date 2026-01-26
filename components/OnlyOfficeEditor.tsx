@@ -92,7 +92,15 @@ const OnlyOfficeEditor: React.FC<OnlyOfficeEditorProps> = ({
 
     const handleError = (event: any) => {
         console.error("📛 OnlyOffice Error:", event);
-        setError(`Erro no editor: ${event?.data || "Erro desconhecido"}`);
+        let errorMessage = "Erro desconhecido";
+        if (event && event.data) {
+            if (typeof event.data === 'object') {
+                errorMessage = JSON.stringify(event.data);
+            } else {
+                errorMessage = event.data;
+            }
+        }
+        setError(`Erro no editor: ${errorMessage}`);
     };
 
     // Loading State
@@ -180,15 +188,20 @@ const OnlyOfficeEditor: React.FC<OnlyOfficeEditorProps> = ({
             </div>
 
             {/* OnlyOffice Editor */}
-            <DocumentEditor
-                id="onlyoffice-editor"
-                documentServerUrl={documentServerUrl}
-                config={config}
-                events_onDocumentReady={handleDocumentReady}
-                events_onError={handleError}
-                width="100%"
-                height="calc(100vh - 200px)"
-            />
+            {/* OnlyOffice Editor */}
+            {config && config.document && (
+                <div key={config.document.key} className="w-full h-full">
+                    <DocumentEditor
+                        id="onlyoffice-editor"
+                        documentServerUrl={documentServerUrl}
+                        config={config}
+                        events_onDocumentReady={handleDocumentReady}
+                        events_onError={handleError}
+                        width="100%"
+                        height="calc(100vh - 200px)"
+                    />
+                </div>
+            )}
 
             {/* Footer Info */}
             <div className="absolute bottom-0 left-0 right-0 bg-slate-100 dark:bg-slate-800 px-4 py-2 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700">

@@ -137,6 +137,7 @@ export interface DocTemplate {
   type: string;
   content_html?: string;
   cabinet_id?: string;
+  storage_path?: string;
 }
 
 export interface StatCardProps {

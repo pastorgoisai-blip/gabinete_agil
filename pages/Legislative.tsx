@@ -12,8 +12,9 @@ import OnlyOfficeEditor from '../components/OnlyOfficeEditor';
 import {
   FileText, Plus, Search, Eye, Edit, Trash2, Download, UploadCloud,
   FileSpreadsheet, RefreshCw, Calendar, Briefcase, Filter, Mail, Send,
-  FileEdit, X, ExternalLink
+  FileEdit, X, ExternalLink, FileOutput
 } from 'lucide-react';
+import CreateFromTemplateModal from '../components/CreateFromTemplateModal';
 
 const OFFICIAL_TYPES = [
   'Indicação',
@@ -33,6 +34,7 @@ const Legislative: React.FC = () => {
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWordImportOpen, setIsWordImportOpen] = useState(false);
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<LegislativeOffice | null>(null);
 
@@ -151,17 +153,24 @@ const Legislative: React.FC = () => {
                 setSelectedOffice(null);
               }}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'protocol'
-                  ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
-                  : 'text-slate-500 hover:text-slate-700'
+                ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
+                : 'text-slate-500 hover:text-slate-700'
                 }`}
             >
               Protocolo
             </button>
             <button
+
               onClick={() => setIsWordImportOpen(true)}
               className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-2"
             >
               <FileText className="w-4 h-4" /> Importar do Word
+            </button>
+            <button
+              onClick={() => setIsGeneratorOpen(true)}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-2"
+            >
+              <FileOutput className="w-4 h-4" /> Novo (Modelo DOCX)
             </button>
             <button
               onClick={() => {
@@ -169,8 +178,8 @@ const Legislative: React.FC = () => {
                 setActiveTab('editor');
               }}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'editor'
-                  ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
-                  : 'text-slate-500 hover:text-slate-700'
+                ? 'bg-white dark:bg-slate-700 shadow text-primary-600 dark:text-primary-400'
+                : 'text-slate-500 hover:text-slate-700'
                 }`}
             >
               Novo Documento
@@ -454,6 +463,18 @@ const Legislative: React.FC = () => {
           setSelectedOffice(draftOffice);
           setActiveTab('editor');
           setIsWordImportOpen(false);
+        }}
+      />
+
+      {/* Create From Template Modal */}
+      <CreateFromTemplateModal
+        isOpen={isGeneratorOpen}
+        onClose={() => setIsGeneratorOpen(false)}
+        onSuccess={(document) => {
+          setIsGeneratorOpen(false);
+          // Opcional: já abrir o OnlyOffice se desejar
+          handleEditOnlyOffice(document);
+          fetchOffices();
         }}
       />
     </div>

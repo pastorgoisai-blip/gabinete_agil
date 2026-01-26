@@ -33,6 +33,10 @@
     "@tiptap/extension-underline": "^3.16.0",
     "@tiptap/react": "^3.16.0",
     "@tiptap/starter-kit": "^3.16.0",
+    "ckeditor5": "^47.4.0",
+    "ckeditor5-premium-features": "^47.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "docx": "^8.5.0",
     "file-saver": "^2.0.5",
     "leaflet": "1.9.4",
@@ -48,6 +52,7 @@
     "react-leaflet": "4.2.1",
     "react-router-dom": "6.23.1",
     "recharts": "2.12.7",
+    "tailwind-merge": "^3.4.0",
     "xlsx": "0.18.5",
     "zod": "^4.3.5"
   },
