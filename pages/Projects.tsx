@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import OnlyOfficeEditor from '../components/OnlyOfficeEditor';
+
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -182,7 +182,7 @@ const Projects: React.FC = () => {
 
   // Dynamic Filters Choices
   const availableTypes = Array.from(new Set(projects.map(p => p.type))).sort();
-  const availableYears = Array.from(new Set(projects.map(p => p.year))).sort((a, b) => parseInt(b) - parseInt(a));
+  const availableYears = Array.from(new Set(projects.map(p => p.year))).sort((a, b) => parseInt(b as string) - parseInt(a as string));
 
   // --- CRUD Operations ---
 
@@ -448,17 +448,7 @@ const Projects: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* ONLYOFFICE EDIT BUTTON */}
-                  {project.originalUrl && (
-                    <button
-                      onClick={() => handleEditDocument(project)}
-                      className="p-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1"
-                      title="Editar no OnlyOffice"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span className="text-xs font-bold hidden sm:inline">Editar</span>
-                    </button>
-                  )}
+                  {/* OnlyOffice Edit Button Removed */}
 
                   <button
                     onClick={() => handleDownload(project)}
@@ -637,31 +627,8 @@ const Projects: React.FC = () => {
         </div>
       </Modal>
 
-      {/* OnlyOffice Editor Modal (Full Screen) */}
-      {isEditorOpen && editingFile && (
-        <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-center justify-between px-4 py-2 bg-slate-900 text-white shadow-md">
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-400" />
-              <span className="font-bold">{editingFile.name}</span>
-            </div>
-            <button
-              onClick={() => { setIsEditorOpen(false); setEditingFile(null); }}
-              className="p-1 hover:bg-slate-700 rounded-full transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <div className="flex-1 bg-slate-100 relative">
-            <OnlyOfficeEditor
-              fileId={editingFile.id}
-              fileName={editingFile.name}
-              fileExt={editingFile.ext}
-              onClose={() => { setIsEditorOpen(false); setEditingFile(null); }}
-            />
-          </div>
-        </div>
-      )}
+      {/* OnlyOffice Editor Removed */}
+
 
 
 

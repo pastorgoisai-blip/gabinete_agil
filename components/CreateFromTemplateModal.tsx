@@ -194,7 +194,7 @@ const CreateFromTemplateModal: React.FC<CreateFromTemplateModalProps> = ({
                             <p className="text-sm text-white/80">
                                 {step === 'choose'
                                     ? `${templates.length} template(s) disponível(is)`
-                                    : 'O documento será aberto no OnlyOffice para edição'}
+                                    : 'O editor abrirá automaticamente'}
                             </p>
                         </div>
                     </div>
@@ -378,7 +378,7 @@ const CreateFromTemplateModal: React.FC<CreateFromTemplateModalProps> = ({
                                 </p>
                                 <ul className="space-y-1 ml-6 list-disc">
                                     <li>O template DOCX será copiado para seu gabinete</li>
-                                    <li>OnlyOffice abrirá automaticamente</li>
+                                    <li>O editor abrirá automaticamente</li>
                                     <li>Edite o documento livremente (já está formatado)</li>
                                     <li>Salvamento automático ativado</li>
                                 </ul>

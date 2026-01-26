@@ -204,7 +204,7 @@ const CopilotWidget: React.FC = () => {
         onClick={toggleOpen}
         className={`fixed bottom-6 right-6 z-50 p-0 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${isOpen
           ? 'bg-slate-800 text-slate-400 rotate-90'
-          : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white animate-bounce-slow'
+          : 'bg-gradient-to-r from-primary-600 to-primary-800 text-white animate-bounce-slow'
           }`}
         title="Abrir Copilot (Ctrl+K)"
       >
@@ -217,7 +217,7 @@ const CopilotWidget: React.FC = () => {
           }`}
       >
         {/* Header */}
-        <div className="h-16 bg-gradient-to-r from-indigo-600 to-purple-700 flex items-center justify-between px-4 shrink-0">
+        <div className="h-16 bg-gradient-to-r from-primary-600 to-primary-800 flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-2 text-white">
             <Bot className="w-5 h-5" />
             <div>
@@ -249,12 +249,12 @@ const CopilotWidget: React.FC = () => {
             <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.type === 'user'
-                  ? 'bg-indigo-600 text-white rounded-br-sm'
+                  ? 'bg-primary-600 text-white rounded-br-sm'
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-bl-sm'
                   }`}
               >
                 <div className="whitespace-pre-wrap">{msg.text}</div>
-                <div className={`text-[10px] mt-1 ${msg.type === 'user' ? 'text-indigo-200' : 'text-slate-400'
+                <div className={`text-[10px] mt-1 ${msg.type === 'user' ? 'text-primary-200' : 'text-slate-400'
                   }`}>
                   {msg.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </div>
@@ -265,7 +265,7 @@ const CopilotWidget: React.FC = () => {
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-slate-700 flex gap-2 items-center shadow-sm">
-                <RefreshCw className="w-4 h-4 text-indigo-500 animate-spin" />
+                <RefreshCw className="w-4 h-4 text-primary-500 animate-spin" />
                 <span className="text-sm text-slate-500">Processando...</span>
               </div>
             </div>
@@ -282,7 +282,7 @@ const CopilotWidget: React.FC = () => {
                 key={idx}
                 onClick={() => handleQuickAction(action.prompt)}
                 disabled={isLoading}
-                className="whitespace-nowrap px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 text-xs font-medium rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors border border-indigo-100 dark:border-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="whitespace-nowrap px-3 py-1 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 text-xs font-medium rounded-full hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors border border-primary-100 dark:border-primary-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {action.label}
               </button>
@@ -302,13 +302,13 @@ const CopilotWidget: React.FC = () => {
               }}
               placeholder="Digite sua pergunta..."
               disabled={isLoading}
-              className="w-full pl-4 pr-12 py-3 bg-gray-100 dark:bg-slate-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white resize-none h-12 max-h-32 disabled:opacity-50"
+              className="w-full pl-4 pr-12 py-3 bg-gray-100 dark:bg-slate-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none text-slate-900 dark:text-white resize-none h-12 max-h-32 disabled:opacity-50"
               rows={1}
             />
             <button
               onClick={() => handleSend()}
               disabled={isLoading || !input.trim()}
-              className="absolute right-2 top-2 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="absolute right-2 top-2 p-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />
             </button>

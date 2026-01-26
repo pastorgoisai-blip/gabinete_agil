@@ -4,17 +4,15 @@ import { supabase } from '../lib/supabase';
 import { LegislativeOffice } from '../types';
 import ImportLegislativeModal from '../components/ImportLegislativeModal';
 import ImportOfficesModal from '../components/ImportOfficesModal';
-import ImportWordModal from '../components/ImportWordModal';
 import Modal from '../components/Modal';
 import LegislativeEditor from '../components/LegislativeEditor';
 import DocumentPrintView from '../components/DocumentPrintView';
-import OnlyOfficeEditor from '../components/OnlyOfficeEditor';
+
 import {
   FileText, Plus, Search, Eye, Edit, Trash2, Download, UploadCloud,
   FileSpreadsheet, RefreshCw, Calendar, Briefcase, Filter, Mail, Send,
-  FileEdit, X, ExternalLink, FileOutput
+  FileEdit, X, ExternalLink
 } from 'lucide-react';
-import CreateFromTemplateModal from '../components/CreateFromTemplateModal';
 
 const OFFICIAL_TYPES = [
   'Indicação',
@@ -32,9 +30,8 @@ const Legislative: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modals state
+  // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [isWordImportOpen, setIsWordImportOpen] = useState(false);
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<LegislativeOffice | null>(null);
 
@@ -83,7 +80,7 @@ const Legislative: React.FC = () => {
     return matchesSearch && matchesYear && matchesStatus && matchesType;
   });
 
-  const availableYears = Array.from(new Set(offices.map(o => o.year))).sort((a, b) => parseInt(b) - parseInt(a));
+  const availableYears = Array.from(new Set(offices.map(o => o.year))).sort((a, b) => parseInt(b as string) - parseInt(a as string));
   const availableTypes = Array.from(new Set(offices.map(o => o.type || 'Ofício'))).sort();
 
   const getStatusColor = (status: string) => {
@@ -159,19 +156,7 @@ const Legislative: React.FC = () => {
             >
               Protocolo
             </button>
-            <button
 
-              onClick={() => setIsWordImportOpen(true)}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-2"
-            >
-              <FileText className="w-4 h-4" /> Importar do Word
-            </button>
-            <button
-              onClick={() => setIsGeneratorOpen(true)}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-2"
-            >
-              <FileOutput className="w-4 h-4" /> Novo (Modelo DOCX)
-            </button>
             <button
               onClick={() => {
                 setSelectedOffice(null);
@@ -206,37 +191,16 @@ const Legislative: React.FC = () => {
         />
       )}
 
-      {/* ONLYOFFICE EDITOR */}
-      {activeTab === 'onlyoffice' && selectedOffice?.document_url && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden border border-gray-200 dark:border-slate-700">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <FileEdit className="w-6 h-6" />
-              <div>
-                <h2 className="text-xl font-bold">Editor Colaborativo OnlyOffice</h2>
-                <p className="text-sm opacity-90">
-                  {selectedOffice.type || 'Ofício'} nº {selectedOffice.number}/{selectedOffice.year}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleCloseEditor}
-              className="p-2 hover:bg-purple-800 rounded-lg transition-colors"
-              title="Fechar Editor"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* OnlyOffice Component */}
-          <OnlyOfficeEditor
-            fileId={selectedOffice.document_url}
-            fileName={`${selectedOffice.type || 'Oficio'}_${selectedOffice.number}_${selectedOffice.year}.docx`}
-            fileExt="docx"
-            onClose={handleCloseEditor}
-            onSave={fetchOffices}
-          />
+      {/* ONLYOFFICE EDITOR REMOVED */}
+      {activeTab === 'onlyoffice' && (
+        <div className="p-8 text-center">
+          <p>Funcionalidade descontinuada. Use o Novo Documento.</p>
+          <button
+            onClick={handleCloseEditor}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Voltar
+          </button>
         </div>
       )}
 
@@ -354,19 +318,7 @@ const Legislative: React.FC = () => {
 
                     <div className="flex flex-col sm:items-end gap-3 w-full sm:w-auto mt-2 sm:mt-0">
                       <div className="flex items-center gap-1 bg-gray-50 dark:bg-slate-700/50 p-1 rounded-lg border border-gray-100 dark:border-slate-600">
-                        {/* OnlyOffice Editor Button (Purple) */}
-                        {doc.document_url && (
-                          <button
-                            className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors group relative"
-                            title="Editar no OnlyOffice"
-                            onClick={() => handleEditOnlyOffice(doc)}
-                          >
-                            <FileEdit className="w-5 h-5" />
-                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              OnlyOffice
-                            </span>
-                          </button>
-                        )}
+                        {/* OnlyOffice Button Removed */}
 
                         {/* Download Original */}
                         {doc.document_url && (
@@ -444,39 +396,7 @@ const Legislative: React.FC = () => {
         }}
       />
 
-      <ImportWordModal
-        isOpen={isWordImportOpen}
-        onClose={() => setIsWordImportOpen(false)}
-        onImport={(html) => {
-          const draftOffice: LegislativeOffice = {
-            id: '',
-            cabinet_id: profile?.cabinet_id || '',
-            type: 'Ofício',
-            number: '',
-            year: new Date().getFullYear().toString(),
-            status: 'Pendente',
-            recipient: '',
-            subject: 'Documento Importado do Word',
-            content_html: html,
-            created_at: new Date().toISOString()
-          };
-          setSelectedOffice(draftOffice);
-          setActiveTab('editor');
-          setIsWordImportOpen(false);
-        }}
-      />
 
-      {/* Create From Template Modal */}
-      <CreateFromTemplateModal
-        isOpen={isGeneratorOpen}
-        onClose={() => setIsGeneratorOpen(false)}
-        onSuccess={(document) => {
-          setIsGeneratorOpen(false);
-          // Opcional: já abrir o OnlyOffice se desejar
-          handleEditOnlyOffice(document);
-          fetchOffices();
-        }}
-      />
     </div>
   );
 };

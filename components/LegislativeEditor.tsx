@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import TextAlign from '@tiptap/extension-text-align';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { DocTemplate, LegislativeOffice } from '../types';
-import { Save, ArrowLeft, FileText, Check, LayoutTemplate } from 'lucide-react';
+import { Save, ArrowLeft, FileText, Check, LayoutTemplate, Upload } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
+import { convertDocxToHtml } from '../src/utils/wordToHtml';
 
 interface LegislativeEditorProps {
     onCancel: () => void;
@@ -32,6 +30,9 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
     // Branding State
     const [cabinet, setCabinet] = useState<any>(null);
 
+    // We need a state for content to pass to RichTextEditor
+    const [content, setContent] = useState(initialData?.content_html || '');
+
     useEffect(() => {
         const fetchCabinet = async () => {
             if (!profile?.cabinet_id) return;
@@ -44,17 +45,6 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
         };
         fetchCabinet();
     }, [profile]);
-
-    const handleContentChange = (html: string) => {
-        // We can manage internal state if needed, or just let the editor handle it.
-        // For autosave or validation, we might want a local state.
-        // But here we rely on the ref or just getting it on save?
-        // Actually, RichTextEditor is controlled (or semi-controlled).
-        // Let's add a state for content to keep it in sync.
-    };
-
-    // We need a state for content to pass to RichTextEditor
-    const [content, setContent] = useState(initialData?.content_html || '');
 
     useEffect(() => {
         if (initialData) {
@@ -79,10 +69,70 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
         if (data) setTemplates(data);
     };
 
-    const handleTemplateSelect = (template: DocTemplate) => {
+    const handleTemplateSelect = async (template: DocTemplate) => {
+        let contentToUse = template.content_html || '';
+
+        // Se não tiver HTML mas tiver storage_path (templates antigos do OnlyOffice)
+        if (!contentToUse && template.storage_path) {
+            try {
+                // Tenta baixar do storage. 
+                // Assumindo bucket 'legislative-documents' ou outro onde o arquivo esteja.
+                // O OnlyOffice salvava no 'legislative-documents'.
+                const { data, error } = await supabase.storage
+                    .from('legislative-documents')
+                    .download(template.storage_path);
+
+                if (error) {
+                    // Fallback check: maybe it is just a path string needing correction or in another bucket?
+                    // For now, simple logging.
+                    console.error('Erro ao baixar template:', error);
+                    throw error;
+                }
+
+                if (data) {
+                    // Converter Blob para File para satisfazer a tipagem
+                    const file = new File([data], "template_temp.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+                    const html = await convertDocxToHtml(file);
+                    contentToUse = html;
+                }
+            } catch (err) {
+                console.error('Erro ao converter template legado:', err);
+                alert('Atenção: Não foi possível carregar o conteúdo original deste modelo antigo. O editor abrirá em branco.');
+            }
+        }
+
         setSelectedTemplate(template);
+        setContent(contentToUse);
         setMeta(prev => ({ ...prev, type: template.type }));
         setStep('editor');
+    };
+
+    const handleNewTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0]) return;
+        const file = e.target.files[0];
+
+        try {
+            const html = await convertDocxToHtml(file);
+            const templateName = prompt("Nome do novo Modelo (baseado no arquivo):", file.name.replace('.docx', ''));
+            if (!templateName) return;
+
+            if (!profile?.cabinet_id) return;
+
+            const { error } = await supabase.from('doc_templates').insert([{
+                title: templateName,
+                type: 'Outros',
+                content_html: html,
+                cabinet_id: profile.cabinet_id
+            }]);
+
+            if (error) throw error;
+            alert('Modelo criado com sucesso!');
+            fetchTemplates();
+
+        } catch (err) {
+            console.error('Erro ao processar upload:', err);
+            alert('Erro ao converter arquivo. Verifique se é um DOCX válido.');
+        }
     };
 
     const handleSave = async () => {
@@ -132,35 +182,6 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
         }
     };
 
-    if (step === 'template') {
-        return (
-            <div className="space-y-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                    <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-700">
-                        <ArrowLeft className="w-5 h-5 text-gray-500" />
-                    </button>
-                    <h2 className="text-xl font-bold dark:text-white">Escolha um Modelo</h2>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {templates.map(tmpl => (
-                        <div
-                            key={tmpl.id}
-                            onClick={() => handleTemplateSelect(tmpl)}
-                            className="border border-gray-200 dark:border-slate-700 rounded-xl p-6 cursor-pointer hover:border-primary-500 hover:shadow-lg hover:shadow-primary-500/10 transition-all bg-white dark:bg-slate-800 group"
-                        >
-                            <div className="bg-primary-100 dark:bg-primary-900/30 text-primary-600 p-3 rounded-lg w-fit mb-4 group-hover:scale-110 transition-transform">
-                                <LayoutTemplate className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{tmpl.title}</h3>
-                            <p className="text-sm text-slate-500">{tmpl.type}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
     const handleSaveTemplate = async () => {
         if (!profile?.cabinet_id) return;
 
@@ -183,6 +204,55 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
             alert('Erro ao salvar modelo.');
         }
     };
+
+    if (step === 'template') {
+        return (
+            <div className="space-y-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-700">
+                            <ArrowLeft className="w-5 h-5 text-gray-500" />
+                        </button>
+                        <h2 className="text-xl font-bold dark:text-white">Escolha um Modelo</h2>
+                    </div>
+
+                    <div className="relative">
+                        <input
+                            type="file"
+                            accept=".docx"
+                            onChange={handleNewTemplateUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            title="Carregar arquivo DOCX"
+                        />
+                        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition-colors">
+                            <Upload className="w-4 h-4" /> Importar Novo Modelo (DOCX)
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {templates.map(tmpl => (
+                        <div
+                            key={tmpl.id}
+                            onClick={() => handleTemplateSelect(tmpl)}
+                            className="border border-gray-200 dark:border-slate-700 rounded-xl p-6 cursor-pointer hover:border-primary-500 hover:shadow-lg hover:shadow-primary-500/10 transition-all bg-white dark:bg-slate-800 group"
+                        >
+                            <div className="bg-primary-100 dark:bg-primary-900/30 text-primary-600 p-3 rounded-lg w-fit mb-4 group-hover:scale-110 transition-transform">
+                                <LayoutTemplate className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{tmpl.title}</h3>
+                            <p className="text-sm text-slate-500">{tmpl.type}</p>
+                            {tmpl.storage_path && !tmpl.content_html && (
+                                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-2 inline-block">
+                                    Legado (DOCX)
+                                </span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 animate-fade-in flex flex-col h-screen">

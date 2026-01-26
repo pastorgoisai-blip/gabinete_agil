@@ -1,0 +1,126 @@
+/* RichTextEditor.css */
+
+/* --- Container e Layout de Página --- */
+
+/* Remove bordas padrão do CKEditor e torna o fundo transparente */
+.ck-editor__main > .ck-editor__editable {
+    background: transparent !important; /* Deixa o papel definir o fundo */
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important; /* Padding é controlado pelo container .page-a4 */
+}
+
+/* Container que simula a folha A4 */
+.page-a4 {
+    width: 210mm; /* Largura A4 padrão */
+    min-height: 297mm; /* Altura A4 padrão */
+    background: white;
+    margin: 2rem auto; /* Centraliza na tela com espaco em cima/baixo */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Sombra suave */
+    
+    /* Margens Internas (Padding) conforme ABNT ou padrão legislativo */
+    /* Superior: 3cm (mas visualmente 2cm fica melhor em tela, ajustavel) */
+    /* Esquerda: 3cm, Direita: 2cm, Inferior: 2cm */
+    padding: 2cm 2cm 2cm 3cm; 
+    
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Tipografia do Documento */
+.ck-content {
+    font-family: 'Times New Roman', serif;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000; /* Texto sempre preto no papel */
+    text-align: justify;
+}
+
+/* --- Elementos Específicos do CKEditor --- */
+
+/* Page Break (Quebra de Página Visual) */
+.ck-widget_type-pagebreak {
+    /* Faz a quebra "sair" do padding da folha e ir de ponta a ponta */
+    margin: 2rem -2cm 2rem -3cm !important; 
+    
+    position: relative;
+    border: none !important;
+    display: block;
+    clear: both;
+}
+
+/* A linha visual da quebra */
+.ck-widget_type-pagebreak::after {
+    content: ""; /* Cria o "buraco" visual entre as folhas */
+    display: block;
+    height: 20px; /* Altura do espaço cinza */
+    background-color: #f1f5f9; /* Mesma cor do fundo da tela (slate-100) */
+    width: 100%;
+    
+    /* Bordas para simular o fim de uma folha e começo da outra */
+    border-top: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+    
+    /* Sombra interna para dar profundidade (opcional) */
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* O rótulo "Page Break" que o CKEditor poe (esconder ou estilizar) */
+.ck-page-break__label {
+    display: none !important; /* Esconde o label "Page Break", deixa só o visual */
+}
+
+/* Tabelas */
+.ck-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1em;
+}
+.ck-content table th,
+.ck-content table td {
+    padding: 0.4em;
+    border: 1px solid #000; /* Bordas pretas simples para impressão */
+}
+
+/* Cabeçalhos */
+.ck-content h1 { font-size: 16pt; font-weight: bold; text-align: center; margin-bottom: 1em; }
+.ck-content h2 { font-size: 14pt; font-weight: bold; margin-bottom: 0.8em; }
+.ck-content h3 { font-size: 12pt; font-weight: bold; margin-bottom: 0.5em; }
+
+/* Listas */
+.ck-content ul, .ck-content ol {
+    padding-left: 1.5cm; /* Indentação padrão de lista */
+    margin-bottom: 1em;
+}
+
+/* --- Media Print (Impressão) --- */
+@media print {
+    body {
+        background: white;
+    }
+    
+    /* Esconde toolbar e outros elementos da UI */
+    .ck-editor__top, 
+    .toolbar-container, 
+    button {
+        display: none !important;
+    }
+
+    .page-a4 {
+        margin: 0;
+        box-shadow: none;
+        width: 100%;
+        height: auto;
+        padding: 2cm 2cm 2cm 3cm !important; /* Força margem na impressão */
+        page-break-after: always;
+    }
+    
+    /* Quebras de página reais */
+    .ck-widget_type-pagebreak {
+        display: none; /* Não imprime a barra cinza */
+        page-break-after: always !important;
+        height: 0;
+        margin: 0;
+    }
+}

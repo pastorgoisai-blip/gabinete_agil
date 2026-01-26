@@ -45,22 +45,21 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   }, [darkMode]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-slate-950">
+    <div className="flex bg-gray-50 dark:bg-slate-950 min-h-screen">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      <div className="flex flex-col flex-1 w-0 overflow-hidden">
+      {/* Main Content Wrapper - Com margem para Sidebar Flutuante */}
+      <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 lg:ml-72">
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           darkMode={darkMode}
           toggleDarkMode={() => setDarkMode(!darkMode)}
         />
-        <main className="flex-1 relative overflow-y-auto focus:outline-none">
-          <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-              {children || <Outlet />}
-            </div>
-          </div>
+
+        <main className="flex-1 relative focus:outline-none p-4 sm:p-6 lg:p-8">
+          {children || <Outlet />}
         </main>
+
         <CopilotWidget />
       </div>
     </div>
