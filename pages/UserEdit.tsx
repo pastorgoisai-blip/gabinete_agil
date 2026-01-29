@@ -295,26 +295,6 @@ const UserEdit: React.FC = () => {
     ? new Date(targetProfile.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
     : '-';
 
-  const [lastLoginDate, setLastLoginDate] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchLastLogin = async () => {
-      if (!targetProfile?.id) return;
-      const { data } = await supabase
-        .from('system_access_logs')
-        .select('accessed_at')
-        .eq('user_id', targetProfile.id)
-        .order('accessed_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data) {
-        setLastLoginDate(new Date(data.accessed_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-      }
-    };
-    fetchLastLogin();
-  }, [targetProfile]);
-
   const lastLoginDisplay = lastLoginDate || (targetProfile?.last_access
     ? new Date(targetProfile.last_access).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : 'Nunca');

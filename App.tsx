@@ -30,6 +30,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 
 import ManagerRoute from './components/ManagerRoute';
 import AcceptInvite from './pages/AcceptInvite';
+import ResetPassword from './pages/ResetPassword';
 
 // Layout Component (Authenticated)
 const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
@@ -73,6 +74,7 @@ const App: React.FC = () => {
         <HashRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<AcceptInvite />} />
 
             {/* Rota semi-protegida: Usuário logado mas sem vínculo */}

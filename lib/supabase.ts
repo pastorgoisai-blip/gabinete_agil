@@ -7,4 +7,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase credentials');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: localStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true, // Important for magic links
+  },
+});

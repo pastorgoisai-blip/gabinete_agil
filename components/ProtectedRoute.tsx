@@ -4,7 +4,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export const ProtectedRoute = () => {
-    const { user, loading } = useAuth();
+    const { user, loading, recoveryMode } = useAuth();
 
     if (loading) {
         return (
@@ -15,6 +15,11 @@ export const ProtectedRoute = () => {
                 </div>
             </div>
         );
+    }
+
+    // Se estiver em modo de recuperação, forçar ir para a tela de reset
+    if (recoveryMode) {
+        return <Navigate to="/reset-password" replace />;
     }
 
     // Se não estiver logado, redireciona para login
