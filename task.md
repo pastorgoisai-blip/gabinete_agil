@@ -28,6 +28,8 @@
     - [x] 🤖 Backend: `query-copilot` Edge Function (Gemini + Supabase) <!-- id: 26 -->
     - [x] 🔌 Frontend: `CopilotWidget` Integration (Streaming) <!-- id: 27 -->
     - [x] 🔀 Hybrid Mode: Added OpenAI Support (DB/API/Settings) <!-- id: 29 -->
-    - [x] 🧠 **Memory**: Create `copilot_chat_history` table <!-- id: 30 -->
     - [x] 🕵️ **Data Agent**: Implement `voters` SQL Tool (`query_voters_smart`) <!-- id: 31 -->
     - [ ] 🧪 Verification: Test Chat Flow + Data Query <!-- id: 28 -->
+- [ ] **Copilot Refinement (Feedback)** <!-- id: 32 -->
+    - [ ] 🔴 FIX: Add `type` filtering to `query_database` (Indicações/Moções) <!-- id: 33 -->
+    - [ ] 🔴 FIX: Include File Metadata/Description in RAG Context <!-- id: 34 -->

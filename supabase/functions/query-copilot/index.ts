@@ -14,19 +14,25 @@ Deno.serve(async (req) => {
     }
 
     try {
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) throw new Error('Missing Authorization Header')
+        const token = authHeader.replace('Bearer ', '')
+
         const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+            { global: { headers: { Authorization: authHeader } } }
         )
 
         // 1. Auth & Context
         const {
             data: { user },
-        } = await supabaseClient.auth.getUser()
+            error: authError
+        } = await supabaseClient.auth.getUser(token)
 
-        if (!user) {
-            throw new Error('Unauthorized')
+        if (authError || !user) {
+            console.error('Auth Error:', authError)
+            throw new Error(`Unauthorized: ${authError?.message || 'User not found'}`)
         }
 
         // Get User Profile to find Cabinet ID
@@ -45,7 +51,7 @@ Deno.serve(async (req) => {
         // 2. Get Config (Gemini Key)
         const { data: cabinet } = await supabaseClient
             .from('cabinets')
-            .select('gemini_api_key')
+            .select('gemini_api_key, openai_api_key')
             .eq('id', cabinetId)
             .single()
 
@@ -62,63 +68,152 @@ Deno.serve(async (req) => {
             throw new Error('Query is required')
         }
 
-        // 3. Generate Embedding (Gemini)
-        const genAI = new GoogleGenerativeAI(cabinet.gemini_api_key)
-        const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' })
+        // Initialize OpenAI client
+        const openai = new OpenAI({ apiKey: cabinet.openai_api_key });
 
-        const embeddingResult = await embeddingModel.embedContent(query)
-        const embedding = embeddingResult.embedding.values
+        const systemPrompt = `You are the AI Assistant for "Gabinete Ágil", a specialized political storage system.
+Answer based on context. Always answer in Portuguese (Brazil).
+Be executive and precise. Cite names and process numbers when available.
 
-        // 4. Retrieve Documents (RPC)
-        const { data: documents, error: searchError } = await supabaseClient.rpc('match_documents', {
-            query_embedding: embedding,
-            match_threshold: 0.5, // Adjust as needed
-            match_count: 5,
-            filter_cabinet_id: cabinetId
-        })
+# CONTEXT DICTIONARY (DATABASE STRUCTURE):
+- **VOTERS** ('voters'): Citizens info, birthdays, address, and who indicated them ('indicated_by').
+- **LEGAL_NORMS** ('legal_norms'): Municipal laws synchronized from SAPL.
+- **LEGISLATIVE_MATTERS** ('legislative_matters'): Bills (Projetos de Lei) and requests (Requerimentos) in official tramitation.
+- **DEMANDS** ('demands'): Population requests/tickets (Status: Pending, Done).
+- **OFFICES** ('offices'): Official documents/letters sent by the cabinet.
 
-        if (searchError) {
-            console.error('Search Error:', searchError)
-            throw new Error('Failed to search documents')
+# TOOLS STRATEGY:
+1. Use 'query_voters' for questions about people (birthdays, location, contact).
+2. Use 'query_database' for lists of items ("What's new?", "List demands", "Find office X").
+3. Use 'search_documents' for generic text search or analyzing content of Laws/Decrees.
+`;
+
+        // Define Tools
+        const tools = [
+            {
+                type: "function",
+                function: {
+                    name: "search_documents",
+                    description: "Search internal legislative documents (PDFs, DOCs). Use for questions about 'leis', 'projetos', 'regimento', 'texto', or generic content queries.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            search_term: { type: "string", description: "Termo de busca" }
+                        },
+                        required: ["search_term"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "query_voters",
+                    description: "Search the Voters database. Questions: 'citizens', 'birthdays' (aniversariantes), 'neighborhood' (bairro).",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string", description: "Filter by name" },
+                            city: { type: "string", description: "Filter by city" },
+                            neighborhood: { type: "string", description: "Filter by neighborhood" },
+                            birth_month: { type: "integer", description: "Month number (1=Jan, 2=Feb)" }
+                        }
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "query_database",
+                    description: "General SQL Query for Gabinete Tables. Questions: 'What is new?' (legislative_matters), 'List demands', 'Find Office'.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            target_table: {
+                                type: "string",
+                                enum: ["legislative_matters", "demands", "offices", "legal_norms"],
+                                description: "The table to query."
+                            },
+                            search_term: { type: "string", description: "Optional text filter (title/subject)" }
+                        },
+                        required: ["target_table"]
+                    }
+                }
+            }
+        ];
+
+        // 1. Initial Call
+        const messages = [
+            { role: "system", content: systemPrompt },
+            ...history.map((msg: any) => ({ role: msg.role === 'model' ? 'assistant' : 'user', content: msg.content })),
+            { role: "user", content: query }
+        ];
+
+        const initialResp = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: messages,
+            tools: tools,
+            tool_choice: "auto",
+        });
+
+        const choice = initialResp.choices[0];
+        const toolCalls = choice.message.tool_calls;
+        let finalContext = "";
+
+        // 2. Execute Tools
+        if (toolCalls && toolCalls.length > 0) {
+            for (const toolCall of toolCalls) {
+                const fnName = toolCall.function.name;
+                const args = JSON.parse(toolCall.function.arguments);
+                console.log(`Tool Call: ${fnName}`, args);
+
+                if (fnName === 'search_documents') {
+                    const embResp = await openai.embeddings.create({ model: "text-embedding-3-small", input: args.search_term || query });
+                    const { data: docs } = await supabaseClient.rpc('match_documents_openai', {
+                        query_embedding: embResp.data[0].embedding, match_threshold: 0.4, match_count: 5, filter_cabinet_id: cabinetId
+                    });
+                    finalContext += `\n[DOCUMENTS]:\n${docs?.map((d: any) => d.content).join('\n') || 'None.'}\n`;
+                }
+
+                if (fnName === 'query_voters') {
+                    const { data: voters } = await supabaseClient.rpc('query_voters_smart', {
+                        filter_cabinet_id: cabinetId,
+                        filter_name: args.name || null,
+                        filter_city: args.city || null,
+                        filter_neighborhood: args.neighborhood || null,
+                        filter_birth_month: args.birth_month || null
+                    });
+                    finalContext += `\n[DATABASE - VOTERS]:\n${JSON.stringify(voters, null, 2) || 'None.'}\n`;
+                }
+
+                if (fnName === 'query_database') {
+                    const { data: records } = await supabaseClient.rpc('query_database_smart', {
+                        filter_cabinet_id: cabinetId,
+                        target_table: args.target_table,
+                        search_term: args.search_term || null,
+                        limit_count: 10
+                    });
+                    finalContext += `\n[DATABASE - ${args.target_table}]:\n${JSON.stringify(records, null, 2) || 'None.'}\n`;
+                }
+            }
+            messages.push(choice.message);
+            messages.push({ role: "tool", content: finalContext, tool_call_id: toolCalls[0].id });
         }
 
-        // 5. Construct Prompt
-        const contextText = documents
-            ?.map((doc: any) => `Source: ${doc.metadata?.source || 'Unknown'}\nContent: ${doc.content}`)
-            .join('\n\n')
-
-        const systemPrompt = `
-You are the AI Assistant for "Gabinete Ágil", a political management system.
-Your role is to answer questions based STRICTLY on the provided context (Legislative Documents).
-If the answer is not in the context, say you don't know based on the documents available.
-Be professional, concise, and helpful.
-
-Context:
-${contextText || 'No relevant documents found.'}
-
-Chat History:
-${history?.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n') || ''}
-`
-
-        const userPrompt = `User Question: ${query}`
-
-        // 6. Generate Response (Stream)
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' }) // Or flash
-
-        // We use a simple prompt approach here
-        const result = await model.generateContentStream([systemPrompt, userPrompt])
+        // 3. Generate Response (Stream)
+        const result = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: messages,
+            stream: true,
+        });
 
         // Create a readable stream for the response
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder()
                 try {
-                    for await (const chunk of result.stream) {
-                        const text = chunk.text()
+                    for await (const chunk of result) {
+                        const text = chunk.choices[0]?.delta?.content || ''
                         if (text) {
-                            // Send as SSE format or just raw text? 
-                            // Standard fetch stream reading usually allows raw text.
-                            // Let's send raw text chunks.
                             controller.enqueue(encoder.encode(text))
                         }
                     }
