@@ -73,65 +73,127 @@ export default function ImportVotersModal({ isOpen, onClose, onSuccess }: Import
 
         const reader = new FileReader();
         const processRow = async (row: any) => {
-            // Mapeamento simples baseado nos headers da planilha do usuário
-            // Tenta encontrar colunas compatíveis
-            const name = row['Nome'] || row['nome'] || row['Name'];
-            const cpf = row['CPF'] || row['cpf'];
-            const phone = row['Telefone'] || row['phone'] || row['Celular'];
-            const address = row['Endereço'] || row['Endereco'] || row['address'];
-            const neighborhood = row['Bairro'] || row['bairro'];
-            const email = row['Email'] || row['email'];
-            const birth_dateRaw = row['Data de Nascimento'] || row['nascimento'];
-            const indicated_by = row['Usuário'] || row['User'] || row['indicated_by'];
-            const category = row['Categoria'] || 'Indeciso';
+            // Helper to find key case-insensitive and trimmed
+            const findKey = (keys: string[]) => {
+                const rowKeys = Object.keys(row);
+                for (const k of keys) {
+                    const match = rowKeys.find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+                    if (match) return row[match];
+                }
+                return null;
+            };
 
-            if (!name) return { status: 'skipped', msg: 'Sem nome' };
+            const name = findKey(['name', 'nome', 'nome completo', 'nome_completo']);
+            const cpf = findKey(['cpf', 'user_cpf', 'documento']);
+            const phone = findKey(['phone', 'telefone', 'celular', 'whatsapp', 'tel', 'telefone/whatsapp']);
+            const address = findKey(['address', 'endereço', 'endereco', 'logradouro', 'rua', 'adress']);
+            const neighborhood = findKey(['neighborhood', 'bairro']);
+            const email = findKey(['email', 'e-mail', 'correio']);
+            const birth_dateRaw = findKey(['birth_date', 'data de nascimento', 'nascimento', 'aniversário', 'aniversario', 'data_nascimento']);
+            const indicated_by = findKey(['indicated_by', 'indicado por', 'indicação', 'usuario', 'user', 'indicado por (captador)']);
+            const category = findKey(['category', 'categoria', 'tipo']) || 'Indeciso';
+            const city = findKey(['city', 'cidade', 'município', 'municipio']);
 
-            // Sanitização básica
-            let birth_date = null;
-            if (birth_dateRaw) {
-                // Tentar converter data excel ou string
-                // TODO: Melhorar parse de data
+            if (!name) return { status: 'skipped', msg: 'Sem nome identificado' };
+
+            // Data Cleaning
+            const cleanCPF = cpf ? String(cpf).replace(/\D/g, '') : null;
+
+            // Date Parsing Helper (Strict DD/MM/YYYY to YYYY-MM-DD)
+            const parseDate = (val: any) => {
+                if (!val) return null;
+                // Handle Excel serial date
+                if (typeof val === 'number') {
+                    const date = new Date((val - (25567 + 2)) * 86400 * 1000);
+                    return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+                }
+                // Handle string DD/MM/YYYY
+                if (typeof val === 'string') {
+                    // Remove potential time part
+                    const datePart = val.split(' ')[0];
+                    const ptBrMatch = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                    if (ptBrMatch) {
+                        const day = ptBrMatch[1].padStart(2, '0');
+                        const month = ptBrMatch[2].padStart(2, '0');
+                        const year = ptBrMatch[3];
+                        return `${year}-${month}-${day}`;
+                    }
+                    // Try standard ISO parse if not DD/MM/YYYY
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+                }
+                return null;
+            };
+
+            const birth_date = parseDate(birth_dateRaw);
+
+            // Check Duplicate
+            if (cleanCPF) {
+                const { data: existing } = await supabase
+                    .from('voters')
+                    .select('id')
+                    .eq('cabinet_id', profile.cabinet_id)
+                    .eq('cpf', cleanCPF)
+                    .maybeSingle();
+
+                if (existing) {
+                    return { status: 'duplicate', msg: `CPF duplicado: ${cleanCPF}` };
+                }
             }
 
-            const { error } = await supabase.from('voters').insert({
+            const { data, error } = await supabase.from('voters').insert({
                 cabinet_id: profile.cabinet_id,
-                name,
-                cpf: String(cpf || '').replace(/\D/g, ''),
+                name: String(name).trim(),
+                cpf: cleanCPF,
                 phone: String(phone || ''),
-                address: address || '',
-                neighborhood: neighborhood || '',
-                email: email || '',
-                indicated_by: indicated_by || '',
-                category,
+                address: String(address || ''), // Removed city concatenation to use separate column if schema supported it, but user schema shows 'city' column exists!
+                city: city || null, // Added city column mapping based on schema provided
+                neighborhood: String(neighborhood || ''),
+                email: String(email || ''),
+                birth_date: birth_date,
+                indicated_by: String(indicated_by || ''),
+                created_by: profile.id, // Added created_by
+                category: String(category).trim(),
                 source: 'Importação',
                 status: 'active'
-            });
+            }).select();
 
-            if (error) return { status: 'error', msg: error.message };
+            if (error) {
+                if (error.code === '23505') return { status: 'duplicate', msg: 'Duplicado no banco' };
+                if (error.message.includes('date/time field value out of range')) {
+                    return { status: 'error', msg: `Data inválida: ${birth_dateRaw} (esperado DD/MM/AAAA)` };
+                }
+                return { status: 'error', msg: error.message };
+            }
+
+            if (!data || data.length === 0) {
+                return { status: 'warning', msg: 'Sucesso (RLS oculto)' };
+            }
             return { status: 'success' };
         };
 
         const runBatch = async (rows: any[]) => {
             let successCount = 0;
             let errorCount = 0;
+            let duplicateCount = 0;
             const total = rows.length;
 
-            // Processar em lotes pequenos ou um a um para ter feedback
-            // Para demo, vamos um a um
             for (let i = 0; i < total; i++) {
                 const result = await processRow(rows[i]);
-                if (result.status === 'success') successCount++;
-                if (result.status === 'error') {
+
+                if (result.status === 'success' || result.status === 'warning') successCount++;
+                else if (result.status === 'duplicate') duplicateCount++;
+                else {
                     errorCount++;
-                    setImportLog(prev => [...prev, `Erro na linha ${i + 2}: ${result.msg}`]);
+                    setImportLog(prev => [...prev, `Linha ${i + 2}: ${result.msg}`]);
                 }
-                setProgress({ total, current: i + 1, errors: errorCount });
+
+                setProgress({ total, current: i + 1, errors: errorCount, duplicates: duplicateCount });
             }
 
             setStep('result');
             setLoading(false);
-            onSuccess();
+            // onSuccess(); // Removed auto-trigger to let user see summary first
         };
 
 
@@ -236,8 +298,8 @@ export default function ImportVotersModal({ isOpen, onClose, onSuccess }: Import
                             </div>
                         )}
 
-                        <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
-                            Fechar
+                        <button onClick={() => { onSuccess(); onClose(); }} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
+                            Concluir e Atualizar Lista
                         </button>
                     </div>
                 )}

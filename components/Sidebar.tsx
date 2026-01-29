@@ -30,22 +30,37 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { profile: authProfile } = useAuth();
 
   const menuItems = [
-    { label: 'Visão Geral', path: '/', icon: LayoutDashboard },
-    { label: 'Agente 24h (IA)', path: '/agent', icon: Bot },
-    { label: 'Gestão de Demandas', path: '/demands', icon: MessageSquareText },
-    { label: 'Base de Eleitores', path: '/voters', icon: Users },
-    { label: 'Agenda Oficial', path: '/agenda', icon: Calendar },
-    { label: 'Espaço Legislativo', path: '/legislative', icon: Gavel },
-    { label: 'Matérias Legislativas', path: '/projects', icon: FolderOpen },
-    { label: 'Homenageados', path: '/honored', icon: Award },
-    { label: 'Relatórios & BI', path: '/reports', icon: BarChart3 },
-    { label: 'Equipe & Usuários', path: '/users', icon: Users },
-    { label: 'Configurações', path: '/settings', icon: Settings },
-    { label: 'Ajuda', path: '/help', icon: LifeBuoy },
+    { label: 'Visão Geral', path: '/', icon: LayoutDashboard, moduleId: 'dashboard' },
+    { label: 'Agente 24h (IA)', path: '/agent', icon: Bot, moduleId: 'agent' },
+    { label: 'Gestão de Demandas', path: '/demands', icon: MessageSquareText, moduleId: 'demands' },
+    // Base de Eleitores maps to 'voters' permission
+    { label: 'Base de Eleitores', path: '/voters', icon: Users, moduleId: 'voters' },
+    { label: 'Agenda Oficial', path: '/agenda', icon: Calendar, moduleId: 'agenda' },
+    { label: 'Espaço Legislativo', path: '/legislative', icon: Gavel, moduleId: 'legislative' },
+    { label: 'Matérias Legislativas', path: '/projects', icon: FolderOpen, moduleId: 'projects' },
+    { label: 'Homenageados', path: '/honored', icon: Award, moduleId: 'honored' },
+    { label: 'Relatórios & BI', path: '/reports', icon: BarChart3, moduleId: 'reports' },
+    { label: 'Equipe & Usuários', path: '/users', icon: Users, moduleId: 'users' },
+    { label: 'Configurações', path: '/settings', icon: Settings, moduleId: 'settings' },
+    { label: 'Ajuda', path: '/help', icon: LifeBuoy, moduleId: 'dashboard' }, // Help usually open to all, mapping to dashboard or public
   ].filter(item => {
+    // 1. Admin/Super Admin bypass checks
+    if (authProfile?.role === 'admin' || authProfile?.is_super_admin) return true;
+
+    // 2. Specific Role Checks (Legacy support if permissions empty)
     if (item.path === '/users' || item.path === '/settings') {
-      return authProfile?.role === 'admin' || authProfile?.is_super_admin;
+      return false; // Only admins can see these, handled above
     }
+
+    // 3. Permission Checks
+    const perms = authProfile?.permissions;
+    if (perms && item.moduleId) {
+      // If permission object exists for this module, check 'view'
+      if (perms[item.moduleId] && perms[item.moduleId].view === false) {
+        return false;
+      }
+    }
+
     return true;
   });
 

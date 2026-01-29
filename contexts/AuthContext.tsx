@@ -14,6 +14,7 @@ export interface UserProfile {
     status?: 'active' | 'inactive' | 'pending';
 
     is_super_admin?: boolean; // Coluna DB: is_super_admin
+    permissions?: Record<string, { view: boolean; edit: boolean; delete: boolean }>;
 }
 
 interface AuthContextType {

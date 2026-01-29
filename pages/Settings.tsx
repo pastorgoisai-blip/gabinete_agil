@@ -20,8 +20,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const Settings: React.FC = () => {
-  const { profile, updateProfile } = useProfile();
+  // Removed useProfile as we are moving to DB persistence
+  // const { profile, updateProfile } = useProfile();
   const { profile: authProfile } = useAuth();
+
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -36,20 +38,23 @@ const Settings: React.FC = () => {
     }
   }, [authProfile, navigate]);
 
-  // Local Profile State
+  // Local Profile State (Synced with Cabinet)
   const [localProfile, setLocalProfile] = useState({
     name: '',
     party: '',
     photo: null as string | null
   });
 
+  // Sync Local State when Cabinet loads
   useEffect(() => {
-    setLocalProfile({
-      name: profile.name,
-      party: profile.party,
-      photo: profile.photo
-    });
-  }, [profile]);
+    if (cabinet) {
+      setLocalProfile({
+        name: cabinet.parliamentary_name || '',
+        party: cabinet.parliamentary_party || '',
+        photo: cabinet.parliamentary_photo || null
+      });
+    }
+  }, [cabinet]);
 
   // Fetch Cabinet
   useEffect(() => {
@@ -68,16 +73,53 @@ const Settings: React.FC = () => {
     fetchCabinet();
   }, [authProfile]);
 
+  // Helper for uploading assets (reused from cabinet upload)
+  const uploadAsset = async (file: File, path: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${path}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('cabinet-assets')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('cabinet-assets')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLocalProfile(prev => ({ ...prev, photo: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (file && authProfile?.cabinet_id) {
+      // Backup previous state
+      const previousPhoto = localProfile.photo;
+
+      try {
+        // Optimistic update for UI
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setLocalProfile(prev => ({ ...prev, photo: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+
+        // Upload to Supabase
+        const publicUrl = await uploadAsset(file, `profiles/${authProfile.cabinet_id}`);
+
+        // Update Local State with real URL
+        setLocalProfile(prev => ({ ...prev, photo: publicUrl }));
+
+      } catch (error) {
+        console.error('Error uploading photo:', error);
+        alert('Erro ao fazer upload da foto. Tente novamente.');
+        // Revert to previous photo on error
+        setLocalProfile(prev => ({ ...prev, photo: previousPhoto }));
+      }
     }
   };
 
@@ -99,29 +141,30 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleSaveProfile = () => {
-    updateProfile(localProfile);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+  const handleSaveProfile = async () => {
+    if (!authProfile?.cabinet_id) return;
+
+    try {
+      const { error } = await supabase
+        .from('cabinets')
+        .update({
+          parliamentary_name: localProfile.name,
+          parliamentary_party: localProfile.party,
+          parliamentary_photo: localProfile.photo
+        })
+        .eq('id', authProfile.cabinet_id);
+
+      if (error) throw error;
+
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Erro ao salvar perfil.');
+    }
   };
 
-  const uploadAsset = async (file: File, path: string) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `${path}/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('cabinet-assets')
-      .upload(filePath, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage
-      .from('cabinet-assets')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
-  };
+  // Removed duplicate uploadAsset definition (moved up)
 
   const handleSaveCabinet = async () => {
     if (!cabinet || !authProfile?.cabinet_id) return;

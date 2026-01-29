@@ -23,7 +23,11 @@ export interface User {
   avatar_url?: string;
   last_access?: string;
   is_super_admin?: boolean; // Super Admin Global
+  permissions?: Record<string, { view: boolean; edit: boolean; delete: boolean }>;
+  bio?: string;
+  phone?: string;
 }
+
 
 export interface Voter {
   id: number | string;
@@ -38,7 +42,9 @@ export interface Voter {
   status: 'active' | 'inactive';
   initial?: string; // Helper para UI
   source?: 'Manual' | 'Auto-cadastro' | 'Importação';
+  created_by?: string;
 }
+
 
 export interface Demand {
   id: number | string;
@@ -54,7 +60,9 @@ export interface Demand {
   statusColor?: string; // Helper para UI
   alert?: string; // Helper para UI
   obs?: string;
+  created_by?: string;
 }
+
 
 export interface Event {
   id: number | string;
@@ -68,7 +76,9 @@ export interface Event {
   location: string;
   description?: string;
   responsible?: string;
+  created_by?: string;
 }
+
 
 export interface Honoree {
   id: number | string;
@@ -204,4 +214,24 @@ export interface AgentMessage {
   content: string;
   created_at: string;
   metadata?: any;
+}
+
+export interface SystemAccessLog {
+  id: string;
+  user_id: string;
+  cabinet_id: string;
+  accessed_at: string;
+  metadata?: {
+    ip?: string;
+    userAgent?: string;
+  };
+}
+
+export interface ProductivityMetrics {
+  userId: string;
+  period: string; // 'day' | 'week' | 'month'
+  logins: number;
+  votersCreated: number;
+  demandsCreated: number;
+  eventsCreated: number;
 }

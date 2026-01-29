@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTeam } from '../hooks/useTeam';
 import { UserProfile } from '../contexts/AuthContext';
+import ProductivityDashboard from '../components/ProductivityDashboard';
 
 const UserList: React.FC = () => {
   const navigate = useNavigate();
@@ -149,6 +150,9 @@ const UserList: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Team Productivity Dashboard */}
+      <ProductivityDashboard scope="cabinet" showTitle={true} />
 
       {/* Filter & Search Bar */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
