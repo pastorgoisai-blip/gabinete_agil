@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sparkles, Send, X, Minimize2, Bot, RefreshCw, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface Message {
   type: 'user' | 'bot';
@@ -16,8 +17,8 @@ const generateUUID = () => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 };
 
-// 🔧 CONFIGURE: Atualize esta URL com o webhook do seu n8n
-const N8N_WEBHOOK_URL = 'https://n8n.gabineteonline.online/webhook-test/copilot-gabinete';
+// URL da Edge Function (Native RAG)
+const EDGE_FUNCTION_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/query-copilot';
 
 // Quick actions pré-configurados
 const QUICK_ACTIONS = [
@@ -82,73 +83,71 @@ const CopilotWidget: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Payload enriquecido com contexto
-      const payload = {
-        message: userMsg,
-        cabinet_id: profile?.cabinet_id,
-        user_name: profile?.name || 'Usuário',
-        session_id: sessionId,
-        context: {
-          current_page: window.location.pathname,
-          timestamp: new Date().toISOString(),
-          user_role: profile?.role
-        }
-      };
+      // 1. Get Session for Auth Header
+      const { data: { session } } = await supabase.auth.getSession();
 
-      const response = await fetch(N8N_WEBHOOK_URL, {
+      if (!session) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // 2. Prepare Request
+      // We use raw fetch to handle Streaming Response
+      const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          query: userMsg,
+          history: messages.map(m => ({ role: m.type === 'user' ? 'user' : 'model', content: m.text }))
+        })
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Erro ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      console.log('Copilot Response:', data);
+      // 3. Handle Stream
+      if (!response.body) throw new Error('ReadableStream not supported by browser.');
 
-      // Tratamento robusto para diferentes formatos de resposta
-      let responseObj = data;
-      if (Array.isArray(data) && data.length > 0) {
-        responseObj = data[0];
-      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let botText = '';
 
-      // Propriedades comuns de retorno
-      const botResponse =
-        responseObj.text ||
-        responseObj.output ||
-        responseObj.message ||
-        responseObj.response ||
-        (typeof responseObj === 'string' ? responseObj : null);
+      // Create initial empty bot message
+      setMessages(prev => [...prev, {
+        type: 'bot',
+        text: '',
+        timestamp: new Date()
+      }]);
 
-      if (botResponse) {
-        setMessages(prev => [...prev, {
-          type: 'bot',
-          text: botResponse,
-          timestamp: new Date()
-        }]);
-      } else {
-        // Fallback se não encontrar resposta esperada
-        setMessages(prev => [...prev, {
-          type: 'bot',
-          text: "Recebi sua mensagem, mas não consegui processar a resposta corretamente. Tente reformular sua pergunta.",
-          timestamp: new Date()
-        }]);
-        console.warn('Formato de resposta inesperado:', data);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        botText += chunk;
+
+        // Update the LAST message (which is the bot's placeholder)
+        setMessages(prev => {
+          const newArr = [...prev];
+          const lastIndex = newArr.length - 1;
+          newArr[lastIndex] = {
+            ...newArr[lastIndex],
+            text: botText
+          };
+          return newArr;
+        });
       }
 
     } catch (error) {
       console.error("Erro Copilot:", error);
 
       let errorMessage = "Ocorreu um erro ao processar sua solicitação.";
-
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        errorMessage = "Erro de conexão. Verifique sua internet e tente novamente.";
-      } else if (error instanceof Error && error.message.includes('HTTP')) {
-        errorMessage = "O serviço está temporariamente indisponível. Tente novamente em alguns instantes.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
       }
 
       setMessages(prev => [...prev, {
@@ -159,7 +158,7 @@ const CopilotWidget: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [input, profile, sessionId]);
+  }, [input, profile]);
 
   const handleQuickAction = (prompt: string) => {
     if (prompt.endsWith(': ')) {

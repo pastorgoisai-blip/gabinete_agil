@@ -23,3 +23,11 @@
 - [x] **Export to Word (.docx)** <!-- id: 21 -->
     - [x] 📦 Install dependencies (`html-docx-js-typescript`, `file-saver`) <!-- id: 22 -->
     - [x] 🧩 Implement Export Logic in `RichTextEditor` <!-- id: 23 -->
+- [ ] **Native RAG (Copilot)** <!-- id: 24 -->
+    - [x] 🗄️ DB: `document_chunks` table + `match_documents` RPC <!-- id: 25 -->
+    - [x] 🤖 Backend: `query-copilot` Edge Function (Gemini + Supabase) <!-- id: 26 -->
+    - [x] 🔌 Frontend: `CopilotWidget` Integration (Streaming) <!-- id: 27 -->
+    - [x] 🔀 Hybrid Mode: Added OpenAI Support (DB/API/Settings) <!-- id: 29 -->
+    - [x] 🧠 **Memory**: Create `copilot_chat_history` table <!-- id: 30 -->
+    - [x] 🕵️ **Data Agent**: Implement `voters` SQL Tool (`query_voters_smart`) <!-- id: 31 -->
+    - [ ] 🧪 Verification: Test Chat Flow + Data Query <!-- id: 28 -->

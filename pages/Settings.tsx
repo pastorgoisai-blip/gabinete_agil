@@ -189,7 +189,9 @@ const Settings: React.FC = () => {
           official_title: cabinet.official_title,
           header_url: finalHeaderUrl,
           footer_url: finalFooterUrl,
-          use_letterhead: cabinet.use_letterhead
+          use_letterhead: cabinet.use_letterhead,
+          gemini_api_key: cabinet.gemini_api_key, // Added persistence for API Key
+          openai_api_key: cabinet.openai_api_key  // Added persistence for OpenAI Key
         })
         .eq('id', authProfile.cabinet_id);
 
@@ -487,7 +489,68 @@ const Settings: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'twilio' && <div className="text-center text-slate-500 py-10">Configurações de API (WhatsApp/SMS)</div>}
+          {activeTab === 'twilio' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-xl space-y-6">
+                <div>
+                  <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-purple-600" />
+                    Inteligência Artificial (Copilot)
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">Configure as chaves de API para habilitar o Copilot nativo.</p>
+                </div>
+
+                <div className="space-y-4">
+
+                  {/* OpenAI Section */}
+                  <div className="space-y-1">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">OpenAI API Key (Opcional)</label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pl-10 outline-none focus:ring-2 focus:ring-green-500 dark:text-white transition-all font-mono text-sm"
+                        value={cabinet?.openai_api_key || ''}
+                        onChange={(e) => setCabinet({ ...cabinet, openai_api_key: e.target.value })}
+                        placeholder="sk-..."
+                      />
+                      <SettingsIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Chave da OpenAI (GPT-4o/GPT-3.5). Se preenchida, será usada com prioridade sobre o Gemini.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-slate-100 dark:border-slate-800 my-4"></div>
+
+                  {/* Gemini Section */}
+                  <div className="space-y-1">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Google Gemini API Key</label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pl-10 outline-none focus:ring-2 focus:ring-purple-500 dark:text-white transition-all font-mono text-sm"
+                        value={cabinet?.gemini_api_key || ''}
+                        onChange={(e) => setCabinet({ ...cabinet, gemini_api_key: e.target.value })}
+                        placeholder="sk-..."
+                      />
+                      <SettingsIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Obtenha sua chave em: <a href="https://aistudio.google.com/" target="_blank" className="text-purple-600 hover:underline">Google AI Studio</a>.
+                      Necessário para busca vetorial e respostas inteligentes.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleSaveCabinet}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-purple-600/20 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-5 h-5" /> Salvar Integrações
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === 'fields' && <div className="text-center text-slate-500 py-10">Personalização de Campos do CRM</div>}
           {activeTab === 'link' && <div className="text-center text-slate-500 py-10">Gerenciador de Links Públicos e QR Code</div>}
         </div>
