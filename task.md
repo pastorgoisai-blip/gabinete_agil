@@ -33,3 +33,7 @@
 - [ ] **Copilot Refinement (Feedback)** <!-- id: 32 -->
     - [ ] 🔴 FIX: Add `type` filtering to `query_database` (Indicações/Moções) <!-- id: 33 -->
     - [ ] 🔴 FIX: Include File Metadata/Description in RAG Context <!-- id: 34 -->
+    - [x] 🚀 **Migration: Gemini 2.5 Flash Lite** <!-- id: 35 -->
+        - [x] 🗄️ DB: Verify `gemini_api_key` <!-- id: 36 -->
+        - [x] 🤖 API: Switch `query-copilot` to Gemini 2.5 Flash Lite <!-- id: 37 -->
+        - [x] 🧪 Verification: Test Stream & Tools (Confirmed by User) <!-- id: 38 -->

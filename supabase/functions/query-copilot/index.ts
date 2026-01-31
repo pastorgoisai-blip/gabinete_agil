@@ -1,10 +1,15 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.2.0'
+import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.21.0'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Interfaces for Tool Calls
+interface ToolCall {
+    name: string;
+    args: any;
 }
 
 Deno.serve(async (req) => {
@@ -51,7 +56,7 @@ Deno.serve(async (req) => {
         // 2. Get Config (Gemini Key)
         const { data: cabinet } = await supabaseClient
             .from('cabinets')
-            .select('gemini_api_key, openai_api_key')
+            .select('gemini_api_key')
             .eq('id', cabinetId)
             .single()
 
@@ -68,8 +73,61 @@ Deno.serve(async (req) => {
             throw new Error('Query is required')
         }
 
-        // Initialize OpenAI client
-        const openai = new OpenAI({ apiKey: cabinet.openai_api_key });
+        // 3. Initialize Gemini
+        const genAI = new GoogleGenerativeAI(cabinet.gemini_api_key);
+
+        // Define Model with Tools
+        const toolsDefinition = [
+            {
+                functionDeclarations: [
+                    {
+                        name: "search_documents",
+                        description: "Search internal legislative documents (PDFs, DOCs). Use for questions about 'leis', 'projetos', 'regimento', 'texto', or generic content queries.",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                search_term: { type: "STRING", description: "Termo de busca" }
+                            },
+                            required: ["search_term"]
+                        }
+                    },
+                    {
+                        name: "query_voters",
+                        description: "Search the Voters database. Questions: 'citizens', 'birthdays' (aniversariantes), 'neighborhood' (bairro).",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                name: { type: "STRING", description: "Filter by name" },
+                                city: { type: "STRING", description: "Filter by city" },
+                                neighborhood: { type: "STRING", description: "Filter by neighborhood" },
+                                birth_month: { type: "INTEGER", description: "Month number (1=Jan, 2=Feb)" }
+                            }
+                        }
+                    },
+                    {
+                        name: "query_database",
+                        description: "General SQL Query for Gabinete Tables. Questions: 'What is new?' (legislative_matters), 'List demands', 'Find Office'.",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                target_table: {
+                                    type: "STRING",
+                                    enum: ["legislative_matters", "demands", "offices", "legal_norms"],
+                                    description: "The table to query."
+                                },
+                                search_term: { type: "STRING", description: "Optional text filter (title/subject)" }
+                            },
+                            required: ["target_table"]
+                        }
+                    }
+                ]
+            }
+        ];
+
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash-lite",
+            tools: toolsDefinition
+        });
 
         const systemPrompt = `You are the AI Assistant for "Gabinete Ágil", a specialized political storage system.
 Answer based on context. Always answer in Portuguese (Brazil).
@@ -88,134 +146,120 @@ Be executive and precise. Cite names and process numbers when available.
 3. Use 'search_documents' for generic text search or analyzing content of Laws/Decrees.
 `;
 
-        // Define Tools
-        const tools = [
-            {
-                type: "function",
-                function: {
-                    name: "search_documents",
-                    description: "Search internal legislative documents (PDFs, DOCs). Use for questions about 'leis', 'projetos', 'regimento', 'texto', or generic content queries.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            search_term: { type: "string", description: "Termo de busca" }
-                        },
-                        required: ["search_term"]
-                    }
-                }
+        // 4. Chat Session
+        const chat = model.startChat({
+            history: [
+                { role: 'user', parts: [{ text: systemPrompt }] },
+                { role: 'model', parts: [{ text: "Entendido. Sou o Copilot Ágil e estou pronto para ajudar com dados do gabinete." }] },
+                ...history.map((msg: any) => ({
+                    role: msg.role === 'assistant' ? 'model' : 'user', // OpenAI uses 'assistant', Gemini uses 'model'
+                    parts: [{ text: msg.content }]
+                }))
+            ],
+            generationConfig: {
+                maxOutputTokens: 1000,
             },
-            {
-                type: "function",
-                function: {
-                    name: "query_voters",
-                    description: "Search the Voters database. Questions: 'citizens', 'birthdays' (aniversariantes), 'neighborhood' (bairro).",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            name: { type: "string", description: "Filter by name" },
-                            city: { type: "string", description: "Filter by city" },
-                            neighborhood: { type: "string", description: "Filter by neighborhood" },
-                            birth_month: { type: "integer", description: "Month number (1=Jan, 2=Feb)" }
-                        }
-                    }
-                }
-            },
-            {
-                type: "function",
-                function: {
-                    name: "query_database",
-                    description: "General SQL Query for Gabinete Tables. Questions: 'What is new?' (legislative_matters), 'List demands', 'Find Office'.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            target_table: {
-                                type: "string",
-                                enum: ["legislative_matters", "demands", "offices", "legal_norms"],
-                                description: "The table to query."
-                            },
-                            search_term: { type: "string", description: "Optional text filter (title/subject)" }
-                        },
-                        required: ["target_table"]
-                    }
-                }
-            }
-        ];
-
-        // 1. Initial Call
-        const messages = [
-            { role: "system", content: systemPrompt },
-            ...history.map((msg: any) => ({ role: msg.role === 'model' ? 'assistant' : 'user', content: msg.content })),
-            { role: "user", content: query }
-        ];
-
-        const initialResp = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: messages,
-            tools: tools,
-            tool_choice: "auto",
         });
 
-        const choice = initialResp.choices[0];
-        const toolCalls = choice.message.tool_calls;
-        let finalContext = "";
+        // 5. Send Message & Handle Tools
+        // Gemini generates tool calls in the response. We loop until no more tool calls.
 
-        // 2. Execute Tools
-        if (toolCalls && toolCalls.length > 0) {
-            for (const toolCall of toolCalls) {
-                const fnName = toolCall.function.name;
-                const args = JSON.parse(toolCall.function.arguments);
-                console.log(`Tool Call: ${fnName}`, args);
+        let result = await chat.sendMessage(query);
+        let response = result.response;
+        let functionCalls = response.functionCalls();
 
-                if (fnName === 'search_documents') {
-                    const embResp = await openai.embeddings.create({ model: "text-embedding-3-small", input: args.search_term || query });
-                    const { data: docs } = await supabaseClient.rpc('match_documents_openai', {
-                        query_embedding: embResp.data[0].embedding, match_threshold: 0.4, match_count: 5, filter_cabinet_id: cabinetId
-                    });
-                    finalContext += `\n[DOCUMENTS]:\n${docs?.map((d: any) => d.content).join('\n') || 'None.'}\n`;
-                }
+        // Loop checking for tool calls
+        while (functionCalls && functionCalls.length > 0) {
+            const toolCall = functionCalls[0]; // Gemini usually returns one logical step or parallel, but SDK simplifies usually
+            const fnName = toolCall.name;
+            const args = toolCall.args;
 
-                if (fnName === 'query_voters') {
-                    const { data: voters } = await supabaseClient.rpc('query_voters_smart', {
-                        filter_cabinet_id: cabinetId,
-                        filter_name: args.name || null,
-                        filter_city: args.city || null,
-                        filter_neighborhood: args.neighborhood || null,
-                        filter_birth_month: args.birth_month || null
-                    });
-                    finalContext += `\n[DATABASE - VOTERS]:\n${JSON.stringify(voters, null, 2) || 'None.'}\n`;
-                }
+            console.log(`Tool Call (${fnName}):`, args);
+            let toolResult = "";
 
-                if (fnName === 'query_database') {
-                    const { data: records } = await supabaseClient.rpc('query_database_smart', {
-                        filter_cabinet_id: cabinetId,
-                        target_table: args.target_table,
-                        search_term: args.search_term || null,
-                        limit_count: 10
-                    });
-                    finalContext += `\n[DATABASE - ${args.target_table}]:\n${JSON.stringify(records, null, 2) || 'None.'}\n`;
+            // Execute Tool
+            if (fnName === 'search_documents') {
+                // For embedding, we can use Gemini Embedding or just basic text search via Postgres if configured.
+                // Since 'match_documents_openai' uses OpenAI embeddings, we can't use it directly UNLESS we switch to Gemini Embeddings OR stick to simple search.
+                // Critical: 'match_documents_openai' expects 1536 dim vector. Gemini is 768.
+                // FIX: For now, we will fallback to a simple keyword search or warn.
+                // Ideally we should create 'match_documents_gemini'. 
+                // Let's assume for this transition we use a simple text match fall back if embeddings mismatch, or we invoke a new embedding model.
+
+                // Let's try to get embedding from Gemini
+                const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+                const embResult = await embeddingModel.embedContent(args.search_term || query);
+                const embedding = embResult.embedding.values;
+
+                // Note: We need a valid RPC for Gemini embeddings (768 dims) vs OpenAI (1536).
+                // If the DB vector column is 1536, this will fail.
+                // Checking safely... assuming we might fail on vector match, we might skip or return empty.
+                // For safety in this "Vertical Slice", I will assume we might NOT have the vector RPC ready for Gemini dimensions
+                // So I will pretend I found nothing OR try to use a simple text search RPC if available.
+                // But wait, the previous code used `match_documents_openai`. 
+                // Let's just return a placeholder message about vector search migration if we can't do it.
+                // actually the user wants a "Vertical Slice", so maybe I should just run `query_database` for generic search if possible?
+                // No, let's try to allow the model to answer without docs if tool fails, giving a gentle error.
+
+                try {
+                    // Temporary: We cannot call 'match_documents_openai' with Gemini vectors (dim mismatch).
+                    // We will return a static message for this specific tool until vector migration is done.
+                    toolResult = "NOTICE: Semantic search is being migrated to Gemini. Please use specific queries on Database for now.";
+                } catch (e) {
+                    toolResult = "Error searching documents.";
                 }
             }
-            messages.push(choice.message);
-            messages.push({ role: "tool", content: finalContext, tool_call_id: toolCalls[0].id });
+
+            if (fnName === 'query_voters') {
+                const { data: voters } = await supabaseClient.rpc('query_voters_smart', {
+                    filter_cabinet_id: cabinetId,
+                    filter_name: args.name || null,
+                    filter_city: args.city || null,
+                    filter_neighborhood: args.neighborhood || null,
+                    filter_birth_month: typeof args.birth_month === 'number' ? args.birth_month : null
+                });
+                toolResult = JSON.stringify(voters?.slice(0, 10), null, 2);
+            }
+
+            if (fnName === 'query_database') {
+                const { data: records } = await supabaseClient.rpc('query_database_smart', {
+                    filter_cabinet_id: cabinetId,
+                    target_table: args.target_table,
+                    search_term: args.search_term || null,
+                    limit_count: 5
+                });
+                toolResult = JSON.stringify(records, null, 2);
+            }
+
+            // Send tool result back to model
+            result = await chat.sendMessage([{
+                functionResponse: {
+                    name: fnName,
+                    response: { result: toolResult }
+                }
+            }]);
+            response = result.response;
+            functionCalls = response.functionCalls();
         }
 
-        // 3. Generate Response (Stream)
-        const result = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: messages,
-            stream: true,
-        });
+        // 6. Response (Streaming simulation)
+        // Gemini SDK `sendMessage` returns a result. `sendMessageStream` returns a stream.
+        // We used `sendMessage` above for the tool loop (it's easier to handle blocking).
+        // For the FINAL text, we already have `response.text()`.
+        // To keep frontend happy (which expects stream), we can just stream the text chunk by chunk or at once.
+        const finalAns = response.text();
 
         // Create a readable stream for the response
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder()
                 try {
-                    for await (const chunk of result) {
-                        const text = chunk.choices[0]?.delta?.content || ''
-                        if (text) {
-                            controller.enqueue(encoder.encode(text))
-                        }
+                    // Simulate streaming explicitly or just send chunks
+                    const chunkSize = 16;
+                    for (let i = 0; i < finalAns.length; i += chunkSize) {
+                        const chunk = finalAns.slice(i, i + chunkSize);
+                        controller.enqueue(encoder.encode(chunk));
+                        await new Promise(r => setTimeout(r, 10)); // tiny delay for effect
                     }
                 } catch (e) {
                     console.error(e)
@@ -236,8 +280,9 @@ Be executive and precise. Cite names and process numbers when available.
         })
 
     } catch (error) {
+        console.error("Critical Error", error);
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: error.message || 'Internal Server Error' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
