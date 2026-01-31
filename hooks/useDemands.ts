@@ -1,23 +1,40 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Demand } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 export const useDemands = () => {
+    const { profile } = useAuth();
     const [demands, setDemands] = useState<Demand[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchDemands = async () => {
+        if (!profile?.cabinet_id) return;
+
         setLoading(true);
         try {
+            // Fetch demands with the creator's profile name
             const { data, error } = await supabase
                 .from('demands')
-                .select('*')
+                .select(`
+                    *,
+                    profiles:created_by (
+                        name
+                    )
+                `)
+                .eq('cabinet_id', profile.cabinet_id) // Explicit filter for safety/performance
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
 
-            setDemands(data || []);
+            // Map the data to flatten the profile name into 'author' for UI compatibility
+            const mappedDemands = (data || []).map((d: any) => ({
+                ...d,
+                author: d.profiles?.name || 'Sistema'
+            }));
+
+            setDemands(mappedDemands);
         } catch (err: any) {
             console.error('Error fetching demands:', err);
             setError(err.message);
@@ -27,27 +44,30 @@ export const useDemands = () => {
     };
 
     const createDemand = async (demand: Partial<Demand>) => {
+        if (!profile?.cabinet_id) {
+            return { success: false, error: 'Gabinete não identificado.' };
+        }
+
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+
             const { error } = await supabase.from('demands').insert([{
                 title: demand.title,
                 description: demand.description,
                 status: demand.status || 'Pendente',
                 priority: demand.priority || 'Média',
                 category: demand.category || 'Outros',
-                beneficiary: demand.beneficiary, // Ensure this maps to 'voter_id' if linked, or just text 'beneficiary_name'? Schema says related to voter... let's check schema.
-                // Checking schema: demands table has voter_id (FK). But UI currently uses text beneficiary.
-                // For now, let's assume we might need to adjust this. 
-                // Waiting for schema check. But for now I'll use what matches the current UI types mostly, 
-                // assuming we might store just the name if no ID, or we need to fix the relationship.
-                // Actually, let's just insert what we have. If schema enforces ID, we will fail.
-                // Let's assume schema has 'title', 'description', 'status', 'priority', 'category'.
-                // Wait, 'beneficiary' in UI is string name. In DB schema from my memory/logs?
-                // Let's re-verify schema in a sec. For now writing generic hook.
+                beneficiary: demand.beneficiary,
+                assigned_to: demand.assigned_to,
+                created_by: user?.id,
+                cabinet_id: profile.cabinet_id
             }]);
+
             if (error) throw error;
             await fetchDemands();
             return { success: true };
         } catch (err: any) {
+            console.error('Error creating demand:', err);
             return { success: false, error: err.message };
         }
     };
@@ -67,6 +87,10 @@ export const useDemands = () => {
         }
     };
 
+    const updateDemandStatus = async (id: number | string, newStatus: string) => {
+        return updateDemand(id, { status: newStatus as any });
+    };
+
     const deleteDemand = async (id: number | string) => {
         try {
             const { error } = await supabase.from('demands').delete().eq('id', id);
@@ -78,9 +102,38 @@ export const useDemands = () => {
         }
     };
 
-    useEffect(() => {
-        fetchDemands();
-    }, []);
+    const getUniqueCategories = async () => {
+        if (!profile?.cabinet_id) return [];
+        try {
+            const { data } = await supabase
+                .from('demands')
+                .select('category')
+                .eq('cabinet_id', profile.cabinet_id);
 
-    return { demands, loading, error, refresh: fetchDemands, createDemand, updateDemand, deleteDemand };
+            // Extract unique categories
+            const categories = Array.from(new Set(data?.map((d: any) => d.category) || []));
+            return categories.sort();
+        } catch (err) {
+            return [];
+        }
+    };
+
+    useEffect(() => {
+        if (profile?.cabinet_id) {
+            fetchDemands();
+        }
+    }, [profile?.cabinet_id]);
+
+    return {
+        demands,
+        loading,
+        error,
+        refresh: fetchDemands,
+        createDemand,
+        updateDemand,
+        updateDemandStatus,
+        deleteDemand,
+        getUniqueCategories,
+        setDemands // Exposed for optimistic UI updates in DnD
+    };
 };

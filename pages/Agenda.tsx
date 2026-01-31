@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import { useAgenda, AgendaEvent, EventFormData } from '../hooks/useAgenda';
+import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 
 // --- Interfaces para Chat (Ainda mockado/memory-only por enquanto) ---
 interface ChatMessage {
@@ -33,6 +34,7 @@ interface ChatMessage {
 const Agenda: React.FC = () => {
   // Hook de Dados Reais
   const { events, loading, createEvent, updateEvent, deleteEvent } = useAgenda();
+  const { syncEvent } = useGoogleCalendar();
 
   // UI States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -183,6 +185,16 @@ const Agenda: React.FC = () => {
 
     if (result.success) {
       showNotification(isEditing ? "✅ Evento atualizado!" : "✅ Evento criado com sucesso!");
+
+      // Google Sync
+      const eventIdToSync = isEditing && selectedEvent ? selectedEvent.id : (result as any).data?.id; // Cast needed as create returns object
+      if (eventIdToSync) {
+        showNotification("🔄 Sincronizando com Google...");
+        syncEvent(eventIdToSync.toString(), isEditing ? 'update' : 'create')
+          .then(() => showNotification("☁️ Sincronizado com Google Calendar"))
+          .catch(() => showNotification("⚠️ Falha ao sincronizar com Google"));
+      }
+
       setIsModalOpen(false);
     } else {
       alert("Erro ao salvar: " + result.error);
@@ -191,7 +203,12 @@ const Agenda: React.FC = () => {
 
   const handleDeleteConfirm = async () => {
     if (selectedEvent) {
-      if (selectedEvent.source === 'google_calendar') showNotification("🗑️ Solicitando remoção no Google Calendar...");
+      if (selectedEvent.source === 'google_calendar' || selectedEvent.google_event_id) showNotification("🗑️ Solicitando remoção no Google Calendar...");
+
+      // Sync Delete FIRST (while event exists in DB)
+      if (selectedEvent.google_event_id) {
+        await syncEvent(selectedEvent.id.toString(), 'delete');
+      }
 
       const result = await deleteEvent(selectedEvent.id);
 
@@ -378,8 +395,8 @@ const Agenda: React.FC = () => {
                 {chatHistory.map(msg => (
                   <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.sender === 'user'
-                        ? 'bg-purple-600 text-white rounded-br-none'
-                        : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none shadow-sm'
+                      ? 'bg-purple-600 text-white rounded-br-none'
+                      : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none shadow-sm'
                       }`}>
                       {msg.text}
                     </div>

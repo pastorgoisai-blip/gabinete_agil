@@ -31,6 +31,7 @@ export interface AgendaEvent extends EventFormData {
     displayDate?: string;
     statusColor?: string;
     statusLabel?: 'hoje' | 'chegando' | 'distante' | 'concluido';
+    google_event_id?: string;
 }
 
 export const useAgenda = () => {

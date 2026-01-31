@@ -11,6 +11,13 @@ export interface Cabinet {
   official_name?: string;
   official_title?: string;
   use_letterhead?: boolean;
+  agent_access_token?: string; // Phase 4
+
+  // Phase 5: Google Calendar
+  google_access_token?: string;
+  google_refresh_token?: string;
+  google_calendar_id?: string;
+
   // Add other existing columns if known, but these are sufficient for now
 }
 
@@ -52,7 +59,7 @@ export interface Demand {
   description: string;
   beneficiary: string;
   author: string;
-  category: 'Infraestrutura' | 'Saúde' | 'Educação' | 'Segurança' | 'Outros';
+  category: string; // Changed from union to string to support creatable categories
   status: 'Pendente' | 'Em Andamento' | 'Concluída';
   priority: 'Alta' | 'Média' | 'Baixa';
   created_at?: string;
@@ -61,6 +68,7 @@ export interface Demand {
   alert?: string; // Helper para UI
   obs?: string;
   created_by?: string;
+  assigned_to?: string;
 }
 
 
@@ -175,6 +183,8 @@ export interface AgentConfiguration {
   tone: string;
   welcome_message: string;
   is_active: boolean;
+  system_prompt?: string;
+  copilot_system_prompt?: string;
 }
 
 export interface AgentChannel {

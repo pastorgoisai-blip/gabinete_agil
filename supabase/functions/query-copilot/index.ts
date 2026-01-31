@@ -129,7 +129,14 @@ Deno.serve(async (req) => {
             tools: toolsDefinition
         });
 
-        const systemPrompt = `You are the AI Assistant for "Gabinete Ágil", a specialized political storage system.
+        // 2.b Get Agent Config for Copilot Prompt
+        const { data: agentConfig } = await supabaseClient
+            .from('agent_configurations')
+            .select('copilot_system_prompt')
+            .eq('cabinet_id', cabinetId)
+            .single();
+
+        const systemPrompt = agentConfig?.copilot_system_prompt || `You are the AI Assistant for "Gabinete Ágil", a specialized political storage system.
 Answer based on context. Always answer in Portuguese (Brazil).
 Be executive and precise. Cite names and process numbers when available.
 
@@ -143,8 +150,7 @@ Be executive and precise. Cite names and process numbers when available.
 # TOOLS STRATEGY:
 1. Use 'query_voters' for questions about people (birthdays, location, contact).
 2. Use 'query_database' for lists of items ("What's new?", "List demands", "Find office X").
-3. Use 'search_documents' for generic text search or analyzing content of Laws/Decrees.
-`;
+3. Use 'search_documents' for generic text search or analyzing content of Laws/Decrees.`;
 
         // 4. Chat Session
         const chat = model.startChat({
