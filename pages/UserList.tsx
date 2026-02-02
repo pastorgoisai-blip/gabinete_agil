@@ -97,7 +97,7 @@ const UserList: React.FC = () => {
   const getStatusBadge = (status: string) => {
     const config = {
       active: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-400', dot: 'bg-green-600 dark:bg-green-400', label: 'Ativo' },
-      inactive: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-800 dark:text-slate-400', dot: 'bg-slate-600 dark:bg-slate-400', label: 'Inativo' },
+      inactive: { bg: 'bg-muted dark:bg-muted', text: 'text-muted-foreground dark:text-muted-foreground', dot: 'bg-muted-foreground dark:bg-muted-foreground', label: 'Inativo' },
       pending: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-400', dot: 'bg-amber-600 dark:bg-amber-400', label: 'Pendente' },
     };
 
@@ -129,13 +129,13 @@ const UserList: React.FC = () => {
         </div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Gerenciamento de Usuários</h1>
+            <h1 className="text-3xl font-black tracking-tight text-foreground dark:text-foreground">Gerenciamento de Usuários</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Gerencie o acesso, permissões e monitore a atividade da equipe.</p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowInviteModal(true)}
-              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white font-bold h-10 px-5 rounded-lg flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+              className="bg-card dark:bg-card border border-border dark:border-border text-foreground dark:text-foreground font-bold h-10 px-5 rounded-lg flex items-center gap-2 hover:bg-muted dark:hover:bg-muted transition-all"
             >
               <Send className="w-4 h-4" />
               <span>Convidar</span>
@@ -155,7 +155,7 @@ const UserList: React.FC = () => {
       <ProductivityDashboard scope="cabinet" showTitle={true} />
 
       {/* Filter & Search Bar */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
+      <div className="bg-card dark:bg-card border border-border dark:border-border rounded-xl p-4 shadow-sm">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
             <label className="relative block h-11">
@@ -163,7 +163,7 @@ const UserList: React.FC = () => {
                 <Search className="w-5 h-5" />
               </span>
               <input
-                className="block w-full h-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-all"
+                className="block w-full h-full rounded-lg border-border dark:border-border bg-background dark:bg-background pl-10 pr-4 text-sm text-foreground dark:text-foreground placeholder:text-muted-foreground focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-all"
                 placeholder="Buscar por nome ou email..."
                 type="text"
                 value={searchTerm}
@@ -177,7 +177,7 @@ const UserList: React.FC = () => {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="appearance-none w-full h-11 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none"
+                  className="appearance-none w-full h-11 bg-background dark:bg-background border border-border dark:border-border text-foreground dark:text-foreground text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none"
                 >
                   <option value="">Status: Todos</option>
                   <option value="active">Ativo</option>
@@ -191,7 +191,7 @@ const UserList: React.FC = () => {
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="appearance-none w-full h-11 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none"
+                  className="appearance-none w-full h-11 bg-background dark:bg-background border border-border dark:border-border text-foreground dark:text-foreground text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-3 py-2.5 outline-none"
                 >
                   <option value="">Função: Todas</option>
                   <option value="admin">Administrador</option>
@@ -205,11 +205,11 @@ const UserList: React.FC = () => {
       </div>
 
       {/* Data Table */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-card dark:bg-card border border-border dark:border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+              <tr className="bg-muted/50 dark:bg-muted/50 border-b border-border dark:border-border">
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Usuário</th>
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hidden sm:table-cell">Função</th>
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</th>
@@ -217,7 +217,7 @@ const UserList: React.FC = () => {
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-sm">
+            <tbody className="divide-y divide-border dark:divide-border text-sm">
 
               {teamLoading ? (
                 <tr>
@@ -238,7 +238,7 @@ const UserList: React.FC = () => {
                 filteredUsers.map((user) => (
                   <tr
                     key={user.id}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer"
+                    className="hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors group cursor-pointer"
                     onClick={() => navigate(`/users/edit/${user.id}`)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -251,7 +251,7 @@ const UserList: React.FC = () => {
                           </div>
                         )}
                         <div className="ml-4">
-                          <div className="font-medium text-slate-900 dark:text-white">{user.name}</div>
+                          <div className="font-medium text-foreground dark:text-foreground">{user.name}</div>
                           <div className="text-slate-500 dark:text-slate-400 text-xs">{user.email}</div>
                         </div>
                       </div>
@@ -270,7 +270,7 @@ const UserList: React.FC = () => {
                       -
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <button className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <button className="text-muted-foreground hover:text-foreground dark:hover:text-foreground p-1 rounded hover:bg-muted dark:hover:bg-muted transition-colors">
                         <MoreVertical className="w-5 h-5" />
                       </button>
                     </td>
@@ -286,10 +286,10 @@ const UserList: React.FC = () => {
       {/* Invite Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up border border-slate-200 dark:border-slate-700">
+          <div className="bg-card dark:bg-card rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up border border-border dark:border-border">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Convidar Membro</h3>
+                <h3 className="text-xl font-bold text-foreground dark:text-foreground">Convidar Membro</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gere um link seguro para cadastro com acesso pré-configurado.</p>
               </div>
               <button onClick={() => setShowInviteModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -306,7 +306,7 @@ const UserList: React.FC = () => {
                     required
                     value={inviteEmail}
                     onChange={e => setInviteEmail(e.target.value)}
-                    className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
                     placeholder="email@exemplo.com"
                   />
                 </div>
@@ -315,7 +315,7 @@ const UserList: React.FC = () => {
                   <select
                     value={inviteRole}
                     onChange={e => setInviteRole(e.target.value)}
-                    className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="staff">Staff (Equipe)</option>
                     <option value="admin">Administrador</option>
@@ -343,7 +343,7 @@ const UserList: React.FC = () => {
                     <input
                       readOnly
                       value={generatedLink}
-                      className="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 font-mono"
+                      className="flex-1 rounded-lg border-border dark:border-border bg-muted dark:bg-muted px-3 py-2 text-sm text-foreground dark:text-foreground font-mono"
                     />
                     <button
                       onClick={copyToClipboard}
@@ -357,7 +357,7 @@ const UserList: React.FC = () => {
                 </div>
                 <button
                   onClick={() => { setGeneratedLink(null); setInviteEmail(''); setShowInviteModal(false); }}
-                  className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-white font-medium py-2.5 rounded-lg transition-colors"
+                  className="w-full bg-muted dark:bg-muted hover:bg-slate-200 dark:hover:bg-slate-600 text-foreground dark:text-foreground font-medium py-2.5 rounded-lg transition-colors"
                 >
                   Fechar
                 </button>

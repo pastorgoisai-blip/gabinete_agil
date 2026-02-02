@@ -90,14 +90,14 @@ const Voters: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6 pb-0">
+      <div className="bg-card dark:bg-card rounded-xl shadow-sm border border-border dark:border-border p-6 pb-0">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary-600 text-white rounded-lg shadow-lg shadow-primary-600/30">
               <UserCheck className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Base de Eleitores</h1>
+              <h1 className="text-2xl font-bold text-foreground dark:text-foreground">Base de Eleitores</h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">Gerenciamento de relacionamento e segmentação.</p>
             </div>
           </div>
@@ -127,7 +127,7 @@ const Voters: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por nome, CPF ou endereço..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
             />
           </div>
 
@@ -137,7 +137,7 @@ const Voters: React.FC = () => {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none appearance-none cursor-pointer"
+                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground focus:ring-2 focus:ring-primary-500 outline-none appearance-none cursor-pointer"
               >
                 <option>Todas as categorias</option>
                 <option>Liderança</option>
@@ -153,7 +153,7 @@ const Voters: React.FC = () => {
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as any)}
-                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none appearance-none cursor-pointer"
+                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground focus:ring-2 focus:ring-primary-500 outline-none appearance-none cursor-pointer"
               >
                 <option value="recent">Mais Recentes</option>
                 <option value="az">Nome (A-Z)</option>
@@ -166,8 +166,8 @@ const Voters: React.FC = () => {
             <button
               onClick={() => setShowBirthdaysOnly(!showBirthdaysOnly)}
               className={`px-4 py-2.5 rounded-lg border flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${showBirthdaysOnly
-                  ? 'bg-pink-50 border-pink-200 text-pink-600 dark:bg-pink-900/20 dark:border-pink-800'
-                  : 'bg-white border-gray-300 text-slate-600 hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-300'
+                ? 'bg-pink-50 border-pink-200 text-pink-600 dark:bg-pink-900/20 dark:border-pink-800'
+                : 'bg-card border-border text-muted-foreground hover:bg-muted dark:bg-card dark:border-border dark:text-foreground'
                 }`}
             >
               <Calendar className="w-4 h-4" />
@@ -185,34 +185,34 @@ const Voters: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {filteredVoters.length === 0 ? (
-            <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 border-dashed">
+            <div className="text-center py-10 bg-card dark:bg-card rounded-xl border border-border dark:border-border border-dashed">
               <p className="text-gray-500 dark:text-slate-400">Nenhum eleitor encontrado.</p>
               <button onClick={() => setIsImportOpen(true)} className="mt-2 text-primary-600 font-bold hover:underline">Importar agora</button>
             </div>
           ) : filteredVoters.map((voter) => (
-            <div key={voter.id} className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-500 transition-all group relative">
+            <div key={voter.id} className="bg-card dark:bg-card p-5 rounded-xl shadow-sm border border-border dark:border-border hover:border-primary-500 dark:hover:border-primary-500 transition-all group relative">
               <div className="flex flex-col lg:flex-row items-center gap-5 pl-3">
 
                 {/* Avatar & Basic Info */}
                 <div className="flex items-center gap-4 flex-1 w-full">
                   <div
                     onClick={() => handleView(voter)}
-                    className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-200 font-bold text-lg border border-slate-200 dark:border-slate-600 cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
+                    className="w-12 h-12 rounded-full bg-muted dark:bg-muted flex items-center justify-center text-muted-foreground dark:text-muted-foreground font-bold text-lg border border-border dark:border-border cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
                   >
                     {voter.avatar_url ? (
                       <img src={voter.avatar_url} alt={voter.name} className="w-full h-full rounded-full object-cover" />
                     ) : getInitial(voter.name)}
                   </div>
                   <div className="flex-1 min-w-0 pointer-events-none sm:pointer-events-auto" onClick={() => handleView(voter)}>
-                    <h3 className="font-bold text-slate-800 dark:text-white text-lg truncate cursor-pointer hover:text-primary-600 transition-colors">{voter.name}</h3>
+                    <h3 className="font-bold text-foreground dark:text-foreground text-lg truncate cursor-pointer hover:text-primary-600 transition-colors">{voter.name}</h3>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-1">
                       {voter.address && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {voter.address}</span>}
                       {voter.indicated_by && <span className="text-xs bg-gray-100 dark:bg-slate-700 px-2 rounded-full">Ind: {voter.indicated_by}</span>}
                     </div>
                     <div className="flex gap-2">
                       <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${voter.category === 'Liderança' ? 'bg-purple-50 text-purple-700' :
-                          voter.category === 'Apoiador' ? 'bg-blue-50 text-blue-700' :
-                            'bg-slate-100 text-slate-700'
+                        voter.category === 'Apoiador' ? 'bg-blue-50 text-blue-700' :
+                          'bg-slate-100 text-slate-700'
                         }`}>
                         {voter.category}
                       </span>
@@ -242,7 +242,7 @@ const Voters: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handleDelete(voter)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                    className="p-2 text-slate-400 hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20 rounded-lg transition-colors"
                     title="Excluir"
                   >
                     <Trash2 className="w-4 h-4" />

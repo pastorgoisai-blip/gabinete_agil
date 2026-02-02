@@ -37,3 +37,6 @@
         - [x] 🗄️ DB: Verify `gemini_api_key` <!-- id: 36 -->
         - [x] 🤖 API: Switch `query-copilot` to Gemini 2.5 Flash Lite <!-- id: 37 -->
         - [x] 🧪 Verification: Test Stream & Tools (Confirmed by User) <!-- id: 38 -->
+    - [ ] **Visual Refinements** <!-- id: 39 -->
+    - [ ] 🎨 Login: Size & Colors <!-- id: 40 -->
+    - [ ] 🎨 Sidebar: Logo Swap & Dark Mode <!-- id: 41 -->

@@ -38,16 +38,16 @@ const ActivityLogViewer: React.FC<{ userId?: string }> = ({ userId }) => {
     fetchLogs();
   }, [userId]);
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Carregando histórico...</div>;
-  if (!logs.length) return <div className="p-8 text-center text-slate-500">Nenhuma atividade registrada recente.</div>;
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Carregando histórico...</div>;
+  if (!logs.length) return <div className="p-8 text-center text-muted-foreground">Nenhuma atividade registrada recente.</div>;
 
   return (
-    <div className="relative border-l border-slate-200 dark:border-slate-700 ml-3 space-y-6">
+    <div className="relative border-l border-border dark:border-border ml-3 space-y-6">
       {logs.map((log) => (
         <div key={log.id} className="relative pl-6">
           <div className="absolute -left-1.5 top-1.5 h-3 w-3 rounded-full border border-white bg-primary-500 dark:border-slate-900"></div>
           <div className="flex flex-col gap-1">
-            <div className="text-sm font-medium text-slate-900 dark:text-white">
+            <div className="text-sm font-medium text-foreground dark:text-foreground">
               Acesso ao Sistema
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -318,12 +318,12 @@ const UserEdit: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
             {isEditingSelf ? 'Meu Perfil' : `Editar: ${targetProfile?.name}`}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400">Gerencie informações pessoais, acesso e permissões.</p>
+          <p className="text-muted-foreground dark:text-muted-foreground">Gerencie informações pessoais, acesso e permissões.</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsLogModalOpen(true)}
-            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm font-medium flex items-center gap-2"
+            className="px-4 py-2 rounded-lg border border-border dark:border-border text-foreground dark:text-foreground hover:bg-muted dark:hover:bg-muted transition-colors text-sm font-medium flex items-center gap-2"
           >
             <Activity className="w-4 h-4" />
             Logs
@@ -334,10 +334,10 @@ const UserEdit: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Avatar & Basic Info Card */}
         <div className="lg:col-span-1 flex flex-col gap-6">
-          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center text-center shadow-sm">
+          <div className="bg-card dark:bg-card border border-border dark:border-border rounded-xl p-6 flex flex-col items-center text-center shadow-sm">
             <div className="relative group cursor-pointer mb-4">
               <div
-                className="w-32 h-32 rounded-full bg-cover bg-center ring-4 ring-slate-100 dark:ring-slate-900 bg-gray-200 flex items-center justify-center overflow-hidden"
+                className="w-32 h-32 rounded-full bg-cover bg-center ring-4 ring-muted dark:ring-muted bg-muted flex items-center justify-center overflow-hidden"
                 style={formData.avatar_url ? { backgroundImage: `url("${formData.avatar_url}")` } : {}}
               >
                 {!formData.avatar_url && <User className="w-16 h-16 text-gray-400" />}
@@ -347,9 +347,9 @@ const UserEdit: React.FC = () => {
                 <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
               </label>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">{formData.name}</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 capitalize">{formData.role}</p>
-            <div className="w-full h-px bg-gray-200 dark:bg-slate-700 mb-4"></div>
+            <h3 className="text-xl font-bold text-foreground dark:text-foreground">{formData.name}</h3>
+            <p className="text-muted-foreground dark:text-muted-foreground text-sm mb-4 capitalize">{formData.role}</p>
+            <div className="w-full h-px bg-border dark:bg-border mb-4"></div>
             <div className="w-full flex flex-col gap-3">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-500 dark:text-slate-400">ID do Usuário</span>
@@ -372,18 +372,18 @@ const UserEdit: React.FC = () => {
           <form onSubmit={handleSave} className="flex flex-col gap-6">
 
             {/* Personal Information Section */}
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+            <div className="bg-card dark:bg-card border border-border dark:border-border rounded-xl p-6 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600 dark:text-primary-400">
                   <User className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Informações Pessoais</h3>
+                <h3 className="text-lg font-bold text-foreground dark:text-foreground">Informações Pessoais</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400" htmlFor="fullName">Nome Completo</label>
+                  <label className="text-sm font-medium text-foreground dark:text-foreground" htmlFor="fullName">Nome Completo</label>
                   <input
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:border-primary-600 focus:ring-1 focus:ring-primary-600 outline-none transition-all placeholder-slate-400"
+                    className="w-full bg-background dark:bg-background border border-border dark:border-border rounded-lg px-4 py-2.5 text-foreground dark:text-foreground focus:border-primary-600 focus:ring-1 focus:ring-primary-600 outline-none transition-all placeholder-muted-foreground"
                     id="fullName"
                     type="text"
                     value={formData.name}
@@ -395,7 +395,7 @@ const UserEdit: React.FC = () => {
                   <div className="relative">
                     <input
                       disabled
-                      className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                      className="w-full bg-muted dark:bg-muted border border-border dark:border-border rounded-lg px-4 py-2.5 text-muted-foreground dark:text-muted-foreground cursor-not-allowed"
                       id="email"
                       type="email"
                       value={targetProfile?.email}
@@ -455,7 +455,7 @@ const UserEdit: React.FC = () => {
             </div>
 
             {/* Permissions Section */}
-            <div className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-6 shadow-sm relative transition-opacity ${!canEditPermissions ? 'opacity-80' : ''}`}>
+            <div className={`bg-card dark:bg-card border border-border dark:border-border rounded-xl p-6 shadow-sm relative transition-opacity ${!canEditPermissions ? 'opacity-80' : ''}`}>
 
               {!canEditPermissions && (
                 <div className="absolute inset-0 z-10 bg-gray-50/50 dark:bg-slate-900/50 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
@@ -476,7 +476,7 @@ const UserEdit: React.FC = () => {
                   <Shield className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Permissões do Usuário</h3>
+                  <h3 className="text-lg font-bold text-foreground dark:text-foreground">Permissões do Usuário</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Defina o que este usuário pode ver ou alterar no sistema.</p>
                 </div>
               </div>
@@ -541,7 +541,7 @@ const UserEdit: React.FC = () => {
             </div>
 
             {/* Security Section (Change Password) - Only for Self or if implemented globally */}
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+            <div className="bg-card dark:bg-card border border-border dark:border-border rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600 dark:text-primary-400">
@@ -588,7 +588,7 @@ const UserEdit: React.FC = () => {
             <div className="flex items-center justify-end gap-4 pt-4">
               <button
                 onClick={() => navigate('/users')}
-                className="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all font-medium text-sm"
+                className="px-6 py-2.5 rounded-lg border border-border dark:border-border text-foreground dark:text-foreground hover:bg-muted dark:hover:bg-muted transition-all font-medium text-sm"
                 type="button"
               >
                 Cancelar

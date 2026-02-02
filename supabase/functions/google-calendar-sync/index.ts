@@ -19,14 +19,22 @@ serve(async (req) => {
         }
 
         // 1. Authenticate Request
-        const supabaseClient = createClient(
-            Deno.env.get("SUPABASE_URL") ?? "",
-            Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-            { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
-        );
+        // Triggered via Supabase Client -> Gateway verifies JWT -> Here we trust it.
+        const authHeader = req.headers.get("Authorization");
+        if (!authHeader) throw new Error("Missing Authorization Header");
 
-        const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-        if (authError || !user) throw new Error("Unauthorized");
+        const token = authHeader.replace("Bearer ", "");
+        const payloadPart = token.split(".")[1];
+        if (!payloadPart) throw new Error("Invalid Token Format");
+
+        // Decode Base64 (Url Safe)
+        const normalizedPayload = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(normalizedPayload));
+
+        const userId = payload.sub;
+
+
+        if (!userId) throw new Error("Unauthorized: No sub in token");
 
         // 2. Get Safe Admin Client for Token Access
         const supabaseAdmin = createClient(
@@ -34,11 +42,25 @@ serve(async (req) => {
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
         );
 
-        // 3. Fetch Cabinet Tokens
+        // 3. Fetch cabinet_id FROM THE EVENT (not from JWT - JWT doesn't have cabinet_id!)
+        const { data: eventData, error: eventFetchError } = await supabaseAdmin
+            .from("events")
+            .select("cabinet_id")
+            .eq("id", event_id)
+            .single();
+
+        if (eventFetchError || !eventData?.cabinet_id) {
+            console.error("Event lookup failed:", eventFetchError);
+            throw new Error("Event not found or missing cabinet_id");
+        }
+
+        const cabinetId = eventData.cabinet_id;
+
+        // 4. Fetch Cabinet Tokens
         const { data: cabinet, error: cabinetError } = await supabaseAdmin
             .from("cabinets")
             .select("id, google_access_token, google_refresh_token, google_token_expires_at, google_calendar_id")
-            .eq("id", user.user_metadata.cabinet_id) // Assuming metadata has cabinet_id, or fetch via user relation
+            .eq("id", cabinetId)
             .single();
 
         if (cabinetError || !cabinet || !cabinet.google_refresh_token) {
@@ -46,6 +68,7 @@ serve(async (req) => {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
+
 
         // 4. Token Refresh Logic
         let accessToken = cabinet.google_access_token;
@@ -82,18 +105,15 @@ serve(async (req) => {
             }).eq("id", cabinet.id);
         }
 
+        const calendarId = cabinet.google_calendar_id || 'primary';
+
         // 5. Perform Sync Action
         let googleEventId = null;
 
         if (action === "delete") {
-            // Logic to delete using stored google_event_id
-            // Need to fetch event first to get google_id, but event might be deleted in DB already if not careful.
-            // Usually we pass the google_id if the DB record is already gone, or we mark as deleted.
-            // For simplicity, let's assume the event exists but we want to remove from Google, OR we pass google_id in payload.
-            // Let's assume we fetch the event from DB.
             const { data: event } = await supabaseAdmin.from("events").select("google_event_id").eq("id", event_id).single();
             if (event?.google_event_id) {
-                await fetch(`https://www.googleapis.com/calendar/v3/calendars/${cabinet.google_calendar_id}/events/${event.google_event_id}`, {
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${event.google_event_id}`, {
                     method: "DELETE",
                     headers: { Authorization: `Bearer ${accessToken}` }
                 });
@@ -103,25 +123,33 @@ serve(async (req) => {
             const { data: event } = await supabaseAdmin.from("events").select("*").eq("id", event_id).single();
             if (!event) throw new Error("Event not found");
 
+            // Helper to ensure HH:mm:00
+            const formatTime = (t: string) => {
+                const parts = t.split(':'); // handle "08:00" or "08:00:00"
+                const hh = parts[0].padStart(2, '0');
+                const mm = parts[1].padStart(2, '0');
+                return `${hh}:${mm}:00`;
+            };
+
             const googleEventPayload = {
                 summary: event.title,
-                description: event.description,
-                start: { dateTime: new Date(event.start_time).toISOString() }, // Ensure proper ISO format
-                end: { dateTime: new Date(event.end_time || event.start_time).toISOString() },
-                // Add location etc if needed
+                description: `${event.description || ''}\n\nLocal: ${event.location || ''}\nResp: ${event.responsible || ''}`,
+                start: { dateTime: `${event.date}T${formatTime(event.start_time)}`, timeZone: 'America/Sao_Paulo' },
+                end: { dateTime: `${event.date}T${formatTime(event.end_time || event.start_time)}`, timeZone: 'America/Sao_Paulo' },
             };
+            console.log("Google Payload:", JSON.stringify(googleEventPayload));
 
             let response;
             if (event.google_event_id) {
                 // Update
-                response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${cabinet.google_calendar_id}/events/${event.google_event_id}`, {
+                response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${event.google_event_id}`, {
                     method: "PATCH", // Patch is safer
                     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
                     body: JSON.stringify(googleEventPayload)
                 });
             } else {
                 // Create
-                response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${cabinet.google_calendar_id}/events`, {
+                response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
                     method: "POST",
                     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
                     body: JSON.stringify(googleEventPayload)
@@ -145,6 +173,7 @@ serve(async (req) => {
         });
 
     } catch (error) {
+        console.error("Sync Error:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },

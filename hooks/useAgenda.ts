@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useGoogleCalendar } from './useGoogleCalendar';
 import { z } from 'zod';
 
 // --- Esquema de Validação (Zod) ---
@@ -102,31 +103,52 @@ export const useAgenda = () => {
         }
     };
 
+    const { syncEvent } = useGoogleCalendar();
+
     const createEvent = async (data: EventFormData) => {
+        console.log("createEvent START", data);
         try {
             setLoading(true);
 
-            // Validação Zod (opcional se já validado no form, mas segura)
+            // Validação Zod
+            console.log("Validating schema...");
             const validated = eventSchema.parse(data);
+            console.log("Schema validated", validated);
 
+            if (!profile?.cabinet_id) {
+                console.error("NO PROFILE/CABINET ID FOUND");
+                throw new Error("Usuário sem gabinete identificado");
+            }
+
+            console.log("Inserting into Supabase...", { ...validated, cabinet_id: profile.cabinet_id });
             const { data: newEvent, error } = await supabase
                 .from('events')
                 .insert([{
                     ...validated,
-                    cabinet_id: profile?.cabinet_id
+                    cabinet_id: profile.cabinet_id
                 }])
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("Supabase Insert Error:", error);
+                throw error;
+            }
+            console.log("Supabase Insert Success:", newEvent);
 
-            await fetchEvents(); // Refresh da lista
+            // Trigger Google Sync
+            console.log("Triggering Sync...");
+            await syncEvent(newEvent.id.toString(), 'create');
+            console.log("Sync Complete.");
+
+            await fetchEvents();
             return { success: true, data: newEvent };
         } catch (err: any) {
-            console.error('Erro ao criar evento:', err);
-            return { success: false, error: err.message };
+            console.error('Erro ao criar evento (CATCH):', err);
+            return { success: false, error: err.message || JSON.stringify(err) };
         } finally {
             setLoading(false);
+            console.log("createEvent FINALLY");
         }
     };
 
@@ -141,6 +163,9 @@ export const useAgenda = () => {
 
             if (error) throw error;
 
+            // Trigger Google Sync
+            await syncEvent(id.toString(), 'update');
+
             await fetchEvents();
             return { success: true };
         } catch (err: any) {
@@ -153,6 +178,10 @@ export const useAgenda = () => {
     const deleteEvent = async (id: number) => {
         try {
             setLoading(true);
+
+            // Trigger Google Sync BEFORE deleting from DB (so we can find the google_event_id)
+            await syncEvent(id.toString(), 'delete');
+
             const { error } = await supabase
                 .from('events')
                 .delete()

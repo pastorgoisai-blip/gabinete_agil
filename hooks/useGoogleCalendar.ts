@@ -26,6 +26,30 @@ export const useGoogleCalendar = () => {
         }
     };
 
+    // 1.5 Processar Callback (Trocar Code por Token)
+    const exchangeCodeForToken = async (code: string) => {
+        setLoading(true);
+        try {
+            if (!profile?.cabinet_id) throw new Error("Gabinete não identificado");
+
+            const { data, error } = await supabase.functions.invoke('google-calendar-oauth', {
+                body: {
+                    action: 'callback',
+                    code,
+                    cabinet_id: profile.cabinet_id
+                }
+            });
+
+            if (error) throw error;
+            return data;
+        } catch (err) {
+            console.error('Erro ao trocar token:', err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // 2. Desconectar (Remover Tokens)
     const disconnectGoogle = async () => {
         if (!profile?.cabinet_id) return;
@@ -72,6 +96,7 @@ export const useGoogleCalendar = () => {
 
     return {
         connectGoogle,
+        exchangeCodeForToken, // Export function
         disconnectGoogle,
         syncEvent,
         loading

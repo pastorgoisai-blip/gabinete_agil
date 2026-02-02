@@ -2,17 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-    .no-scrollbar::-webkit-scrollbar {
-        display: none;
-    }
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-    }
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Paleta Dark Green Sophisticated 
+      Baseada em tons de verde profundo (Emerald/Jungle) misturado com Slate 
+    */
+
+    /* Fundo base (caso o gradiente não carregue ou para componentes sólidos) - Verde Quase Preto */
+    --background: 150 50% 4%;
+
+    /* Texto principal - Branco levemente esverdeado para harmonia */
+    --foreground: 150 10% 98%;
+
+    /* Cartões - Um pouco mais claros que o fundo, verde escuro */
+    --card: 150 40% 6%;
+    --card-foreground: 150 10% 98%;
+
+    /* Popovers (Menus) */
+    --popover: 150 40% 6%;
+    --popover-foreground: 150 10% 98%;
+
+    /* Cor Primária (Botões, Destaques) - Verde Esmeralda Vibrante */
+    --primary: 142 70% 50%;
+    --primary-foreground: 145 80% 5%;
+
+    /* Secundária - Verde Musgo Escuro */
+    --secondary: 150 20% 15%;
+    --secondary-foreground: 150 10% 98%;
+
+    /* Muted (Textos secundários) */
+    --muted: 150 20% 15%;
+    --muted-foreground: 150 10% 65%;
+
+    /* Accent (Hover de itens) */
+    --accent: 150 30% 12%;
+    --accent-foreground: 150 10% 98%;
+
+    /* Destructive (Erro) */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 150 10% 98%;
+
+    /* Bordas - Verde escuro sutil */
+    --border: 150 20% 12%;
+    --input: 150 20% 12%;
+    --ring: 142 70% 50%;
+  }
 }
 
-body {
-    @apply bg-gray-50 dark:bg-slate-900;
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  /* Aplicação do Gradiente no Modo Dark 
+     Substitui o fundo sólido por um gradiente sutil e elegante
+  */
+  .dark body {
+    /* Gradiente Radial: Centro mais claro (verde noturno) para bordas mais escuras (quase preto) */
+    background: radial-gradient(circle at center top, hsl(150, 40%, 8%), hsl(150, 50%, 2%));
+    background-attachment: fixed;
+    /* Garante que o gradiente fique fixo ao rolar */
+    min-height: 100vh;
+  }
+}
+
+/* Scrollbar personalizada para combinar com o tema verde */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted));
+  border-radius: 9999px;
+  border: 4px solid hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary) / 0.5);
 }

@@ -21,7 +21,7 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-card dark:bg-card rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
                 {/* Header */}
                 <div className="relative h-32 bg-gradient-to-r from-primary-600 to-primary-800">
@@ -37,7 +37,7 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                 <div className="px-8 pb-8 flex-1 overflow-y-auto">
                     <div className="relative -mt-16 mb-6 flex justify-between items-end">
                         <div className="flex items-end gap-6">
-                            <div className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-800 bg-white dark:bg-slate-700 flex items-center justify-center text-4xl font-bold text-slate-300 shadow-lg">
+                            <div className="w-32 h-32 rounded-full border-4 border-card dark:border-card bg-card dark:bg-muted flex items-center justify-center text-4xl font-bold text-muted-foreground shadow-lg">
                                 {voter.avatar_url ? (
                                     <img src={voter.avatar_url} alt={voter.name} className="w-full h-full rounded-full object-cover" />
                                 ) : (
@@ -45,14 +45,14 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                                 )}
                             </div>
                             <div className="mb-2">
-                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{voter.name}</h2>
+                                <h2 className="text-2xl font-bold text-foreground dark:text-foreground">{voter.name}</h2>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase">
                                         {voter.category}
                                     </span>
                                     <span className={`px-2 py-0.5 rounded-md text-xs font-medium border ${voter.status === 'active'
-                                            ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:border-green-800'
-                                            : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                                        ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+                                        : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
                                         }`}>
                                         {voter.status === 'active' ? 'Ativo' : 'Inativo'}
                                     </span>
@@ -62,14 +62,14 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                         <div className="flex gap-2 mb-2">
                             <button
                                 onClick={() => onEdit(voter)}
-                                className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="p-2 text-muted-foreground hover:text-primary-600 hover:bg-primary-50 dark:text-muted-foreground dark:hover:bg-muted rounded-lg transition-colors"
                                 title="Editar"
                             >
                                 <Edit className="w-5 h-5" />
                             </button>
                             <button
                                 onClick={() => onDelete(voter)}
-                                className="p-2 text-slate-600 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:text-muted-foreground dark:hover:bg-muted rounded-lg transition-colors"
                                 title="Excluir"
                             >
                                 <Trash2 className="w-5 h-5" />
@@ -80,7 +80,7 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-6">
                             <div>
-                                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <h3 className="text-sm font-bold text-foreground dark:text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
                                     <User className="w-4 h-4 text-primary-500" />
                                     Dados Pessoais
                                 </h3>
@@ -179,10 +179,10 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="p-4 bg-gray-50 dark:bg-slate-900/50 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-3">
+                <div className="p-4 bg-muted/50 dark:bg-muted/50 border-t border-border dark:border-border flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                        className="px-4 py-2 bg-card dark:bg-card border border-border dark:border-border text-foreground dark:text-foreground rounded-lg hover:bg-muted dark:hover:bg-muted transition-colors"
                     >
                         Fechar
                     </button>

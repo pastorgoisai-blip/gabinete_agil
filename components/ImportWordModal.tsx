@@ -47,7 +47,7 @@ const ImportWordModal: React.FC<ImportWordModalProps> = ({ isOpen, onClose, onIm
 
     return (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative">
+            <div className="bg-card dark:bg-card rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
@@ -56,7 +56,7 @@ const ImportWordModal: React.FC<ImportWordModalProps> = ({ isOpen, onClose, onIm
                 </button>
 
                 <div className="p-6">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-foreground dark:text-foreground mb-2 flex items-center gap-2">
                         <FileText className="w-6 h-6 text-blue-600" />
                         Importar do Word
                     </h2>
@@ -64,7 +64,7 @@ const ImportWordModal: React.FC<ImportWordModalProps> = ({ isOpen, onClose, onIm
                         Selecione um arquivo .docx para converter em um template editável.
                     </p>
 
-                    <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-8 text-center transition-colors hover:border-primary-500 hover:bg-gray-50 dark:hover:bg-slate-700/50 group cursor-pointer relative">
+                    <div className="border-2 border-dashed border-border dark:border-border rounded-xl p-8 text-center transition-colors hover:border-primary-500 hover:bg-muted dark:hover:bg-muted/50 group cursor-pointer relative">
                         <input
                             type="file"
                             accept=".docx"
@@ -77,8 +77,8 @@ const ImportWordModal: React.FC<ImportWordModalProps> = ({ isOpen, onClose, onIm
                                 <div className="bg-blue-100 text-blue-600 p-3 rounded-full mb-3">
                                     <FileText className="w-6 h-6" />
                                 </div>
-                                <p className="font-bold text-slate-700 dark:text-slate-200">{file.name}</p>
-                                <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(0)} KB</p>
+                                <p className="font-bold text-foreground dark:text-foreground">{file.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{(file.size / 1024).toFixed(0)} KB</p>
                                 <p className="text-xs text-blue-600 mt-2 font-bold hover:underline">Clique para trocar</p>
                             </div>
                         ) : (
@@ -86,8 +86,8 @@ const ImportWordModal: React.FC<ImportWordModalProps> = ({ isOpen, onClose, onIm
                                 <div className="bg-gray-100 dark:bg-slate-700 text-gray-400 group-hover:text-primary-500 p-3 rounded-full mb-3 transition-colors">
                                     <UploadCloud className="w-6 h-6" />
                                 </div>
-                                <p className="font-bold text-slate-700 dark:text-slate-200">Clique ou arraste um arquivo</p>
-                                <p className="text-xs text-slate-500 mt-1">Apenas arquivos .docx</p>
+                                <p className="font-bold text-foreground dark:text-foreground">Clique ou arraste um arquivo</p>
+                                <p className="text-xs text-muted-foreground mt-1">Apenas arquivos .docx</p>
                             </div>
                         )}
                     </div>
@@ -101,7 +101,7 @@ const ImportWordModal: React.FC<ImportWordModalProps> = ({ isOpen, onClose, onIm
                     <div className="mt-6 flex gap-3">
                         <button
                             onClick={onClose}
-                            className="flex-1 px-4 py-2 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                            className="flex-1 px-4 py-2 text-muted-foreground dark:text-muted-foreground font-bold text-sm hover:bg-muted dark:hover:bg-muted rounded-lg transition-colors"
                         >
                             Cancelar
                         </button>

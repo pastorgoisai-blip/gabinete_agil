@@ -108,7 +108,7 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Dados Pessoais */}
                 <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Nome Completo *</label>
                     <div className="relative">
                         <User className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
@@ -116,28 +116,28 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                             required
                             value={formData.name}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Nome do eleitor"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">CPF</label>
                     <div className="relative">
                         <Hash className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
                             name="cpf"
                             value={formData.cpf}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="000.000.000-00"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Data de Nascimento</label>
                     <div className="relative">
                         <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
@@ -145,28 +145,28 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                             name="birth_date"
                             value={formData.birth_date}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                         />
                     </div>
                 </div>
 
                 {/* Contato */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone / WhatsApp</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Telefone / WhatsApp</label>
                     <div className="relative">
                         <Phone className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
                             name="phone"
                             value={formData.phone}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="(62) 99999-9999"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Email</label>
                     <div className="relative">
                         <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
@@ -182,38 +182,38 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
 
                 {/* Endereço */}
                 <div className="col-span-2 md:col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Endereço</label>
                     <div className="relative">
                         <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
                             name="address"
                             value={formData.address}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Rua, Número, Qd, Lt"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Bairro</label>
                     <input
                         name="neighborhood"
                         value={formData.neighborhood}
                         onChange={handleChange}
-                        className="w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="Nome do Bairro"
                     />
                 </div>
 
                 {/* Classificação */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Categoria</label>
                     <select
                         name="category"
                         value={formData.category}
                         onChange={handleChange}
-                        className="w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                     >
                         <option value="Indeciso">Indeciso</option>
                         <option value="Apoiador">Apoiador</option>
@@ -224,28 +224,28 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Indicado Por (Captador)</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Indicado Por (Captador)</label>
                     <div className="relative">
                         <UserCheck className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
                             name="indicated_by"
                             value={formData.indicated_by}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Quem indicou?"
                         />
                     </div>
                 </div>
 
                 <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags (Interesses)</label>
+                    <label className="block text-sm font-medium text-foreground dark:text-foreground mb-1">Tags (Interesses)</label>
                     <div className="relative">
                         <Tag className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
                             name="tags"
                             value={formData.tags}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-gray-300 border p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Saúde, Educação, Bairro X (separar por vírgula)"
                         />
                     </div>
@@ -256,14 +256,14 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-sm font-medium text-foreground dark:text-foreground bg-background dark:bg-background border border-border dark:border-border rounded-lg hover:bg-muted dark:hover:bg-muted"
                 >
                     Cancelar
                 </button>
                 <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-bold text-primary-foreground bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
                 >
                     {loading ? 'Salvando...' : 'Salvar Eleitor'}
                 </button>

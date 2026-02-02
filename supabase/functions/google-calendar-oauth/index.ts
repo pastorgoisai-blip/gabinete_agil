@@ -15,8 +15,17 @@ serve(async (req) => {
         const url = new URL(req.url);
         const path = url.pathname.replace("/functions/v1/google-calendar-oauth", ""); // Adjust based on actual deployment path
 
+        let body: any = {};
+        if (req.method === "POST") {
+            try {
+                body = await req.clone().json();
+            } catch {
+                // ignore
+            }
+        }
+
         // 1. GET /auth-url
-        if (path === "/auth-url" || url.searchParams.get("action") === "auth-url") {
+        if (path === "/auth-url" || url.searchParams.get("action") === "auth-url" || body.action === "auth-url") {
             const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
             const redirectUri = Deno.env.get("GOOGLE_REDIRECT_URI");
 
@@ -26,7 +35,8 @@ serve(async (req) => {
 
             const scopes = [
                 "https://www.googleapis.com/auth/calendar",
-                "https://www.googleapis.com/auth/calendar.events"
+                "https://www.googleapis.com/auth/calendar.events",
+                "https://www.googleapis.com/auth/userinfo.email"
             ];
 
             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -35,7 +45,7 @@ serve(async (req) => {
                 `response_type=code&` +
                 `scope=${scopes.join(" ")}&` +
                 `access_type=offline&` + // Critical for refresh token
-                `prompt=consent`;       // Force consent to ensure refresh token is returned
+                `prompt=consent select_account`;       // Force consent and account selection
 
             return new Response(JSON.stringify({ url: authUrl }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -43,8 +53,8 @@ serve(async (req) => {
         }
 
         // 2. POST /callback
-        if (path === "/callback" || (req.method === "POST" && (await req.clone().json()).action === "callback")) {
-            const { code, cabinet_id } = await req.json();
+        if (path === "/callback" || body.action === "callback") {
+            const { code, cabinet_id } = body;
 
             if (!code || !cabinet_id) {
                 throw new Error("Missing code or cabinet_id");
@@ -73,6 +83,13 @@ serve(async (req) => {
                 throw new Error(`Google Error: ${tokens.error_description || tokens.error}`);
             }
 
+            // Fetch User Info
+            const userResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+                headers: { Authorization: `Bearer ${tokens.access_token}` },
+            });
+            const userData = await userResponse.json();
+            const googleEmail = userData.email;
+
             // Save to Supabase (using Service Role to write to protected columns)
             const supabaseAdmin = createClient(
                 Deno.env.get("SUPABASE_URL") ?? "",
@@ -85,7 +102,7 @@ serve(async (req) => {
                     google_access_token: tokens.access_token,
                     google_refresh_token: tokens.refresh_token, // Only sent on first consent or forced prompt
                     google_token_expires_at: Date.now() + (tokens.expires_in * 1000),
-                    // We could fetch the user's email to store as well, but not strictly required
+                    google_email: googleEmail
                 })
                 .eq("id", cabinet_id);
 

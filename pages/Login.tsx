@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -62,33 +62,34 @@ export default function Login() {
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
       {/* Lado Esquerdo - Imagem/Branding */}
       <div className="hidden w-1/2 bg-primary-900 lg:flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-primary-900 opacity-90 z-10"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#dbf0dd] to-[#5c8574] opacity-90 z-10"></div>
         <img
           src="https://images.unsplash.com/photo-1555848962-6e79363ec58f?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
-          alt="Background"
+          alt="Parliament Background"
           className="absolute inset-0 w-full h-full object-cover"
         />
 
         <div className="relative z-20 text-white max-w-lg p-12 animate-fade-in-up">
-          <div className="mb-8 flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-xl">
-              <ShieldCheck className="h-10 w-10 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-sm">Gabinete Ágil</h1>
+          <div className="mb-8 flex justify-center lg:justify-start">
+            <img
+              src="/assets/branding/login-logo.png"
+              alt="Gabinete Ágil"
+              className="h-40 w-auto object-contain drop-shadow-md"
+            />
           </div>
-          <p className="text-xl text-primary-100 mb-8 leading-relaxed font-light">
+          <p className="text-xl text-[#051f20] mb-8 leading-relaxed font-light">
             Gestão política moderna e eficiente para o seu mandato. O sistema é restrito à equipe autorizada.
           </p>
           <div className="flex flex-col gap-4 text-sm text-primary-50 font-medium">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[#132b2e]/80 border border-[#0bbdb1]/30 backdrop-blur-sm shadow-[0_0_15px_#0bbdb1]">
               <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]"></div>
               Gabinete 24h (IA)
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[#132b2e]/80 border border-[#0bbdb1]/30 backdrop-blur-sm shadow-[0_0_15px_#0bbdb1]">
               <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"></div>
               Copilot Legislativo Integrado
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[#132b2e]/80 border border-[#0bbdb1]/30 backdrop-blur-sm shadow-[0_0_15px_#0bbdb1]">
               <div className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.5)]"></div>
               Agente de Agenda Inteligente
             </div>

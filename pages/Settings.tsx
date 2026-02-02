@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
@@ -30,10 +31,34 @@ import ChatSimulator from '../components/ChatSimulator';
 
 const Settings: React.FC = () => {
   const { profile: authProfile } = useAuth();
-  const { connectGoogle, disconnectGoogle, loading: googleLoading } = useGoogleCalendar();
+  const { connectGoogle, disconnectGoogle, exchangeCodeForToken, loading: googleLoading } = useGoogleCalendar();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('general');
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Handle Google OAuth Callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (code) {
+      const handleCallback = async () => {
+        try {
+          await exchangeCodeForToken(code);
+          // Remove code from URL without reload
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Refresh cabinet data immediately
+          await fetchCabinet();
+          setShowSuccess(true);
+          setTimeout(() => setShowSuccess(false), 5000);
+        } catch (error) {
+          alert("Erro ao conectar Google Calendar. Tente novamente.");
+        }
+      };
+
+      handleCallback();
+    }
+  }, []);
 
   // Cabinet State
   const [cabinet, setCabinet] = useState<any>(null);
@@ -391,7 +416,7 @@ const Settings: React.FC = () => {
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-slate-800 text-white rounded-lg shadow-lg">
+        <div className="p-2 bg-card text-foreground rounded-lg shadow-lg">
           <SettingsIcon className="w-6 h-6" />
         </div>
         <div>
@@ -400,10 +425,10 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-card dark:bg-card rounded-xl shadow-sm border border-border dark:border-border overflow-hidden">
         {/* Visual Tab Navigation */}
         <div className="p-6 pb-0">
-          <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50">
+          <div className="flex flex-wrap gap-2 p-1.5 bg-muted dark:bg-muted/50 rounded-xl border border-border dark:border-border/50">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -411,8 +436,8 @@ const Settings: React.FC = () => {
                 className={`
                   flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold rounded-lg transition-all duration-200 ease-in-out
                   ${activeTab === tab.id
-                    ? 'bg-white dark:bg-slate-700 text-primary-600 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
+                    ? 'bg-card dark:bg-muted text-primary-600 dark:text-foreground shadow-sm ring-1 ring-border dark:ring-border'
+                    : 'text-muted-foreground dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted/50'
                   }
                 `}
               >
@@ -435,7 +460,7 @@ const Settings: React.FC = () => {
               <div className="flex flex-col md:flex-row gap-8 items-start">
                 <div className="flex flex-col items-center gap-3">
                   <div className="relative group">
-                    <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-slate-100 dark:border-slate-700 shadow-md bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-muted dark:border-muted shadow-md bg-muted dark:bg-muted flex items-center justify-center">
                       {localProfile.photo ? (
                         <img src={localProfile.photo} alt="Parlamentar" className="w-full h-full object-cover" />
                       ) : (
@@ -444,7 +469,7 @@ const Settings: React.FC = () => {
                     </div>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 p-2 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-colors border-2 border-white dark:border-slate-800"
+                      className="absolute bottom-0 right-0 p-2 bg-primary-600 text-primary-foreground rounded-full shadow-lg hover:bg-primary-700 transition-colors border-2 border-background dark:border-background"
                       title="Alterar foto"
                     >
                       <Camera className="w-4 h-4" />
@@ -465,7 +490,7 @@ const Settings: React.FC = () => {
                     <div className="space-y-1">
                       <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Nome do Político</label>
                       <input
-                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-foreground transition-all"
                         value={localProfile.name}
                         onChange={(e) => setLocalProfile({ ...localProfile, name: e.target.value })}
                       />
@@ -473,7 +498,7 @@ const Settings: React.FC = () => {
                     <div className="space-y-1">
                       <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Partido</label>
                       <input
-                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-foreground transition-all"
                         placeholder="Ex: Partido Novo"
                         value={localProfile.party}
                         onChange={(e) => setLocalProfile({ ...localProfile, party: e.target.value })}
@@ -498,7 +523,7 @@ const Settings: React.FC = () => {
                 {/* Form */}
                 <div className="space-y-6">
                   {/* Card Identidade */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl space-y-4">
+                  <div className="bg-card dark:bg-card border border-border dark:border-border p-4 rounded-xl space-y-4">
                     <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
                       <FileText className="w-5 h-5 text-primary-600" />
                       Identidade do Parlamentar
@@ -506,7 +531,7 @@ const Settings: React.FC = () => {
                     <div className="space-y-1">
                       <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Nome Oficial</label>
                       <input
-                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-foreground transition-all"
                         value={cabinet?.official_name || ''}
                         onChange={(e) => setCabinet({ ...cabinet, official_name: e.target.value })}
                         placeholder="Ex: Gabinete do Vereador João Silva"
@@ -515,7 +540,7 @@ const Settings: React.FC = () => {
                     <div className="space-y-1">
                       <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Cargo Oficial</label>
                       <input
-                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:text-foreground transition-all"
                         value={cabinet?.official_title || ''}
                         onChange={(e) => setCabinet({ ...cabinet, official_title: e.target.value })}
                         placeholder="Ex: Vereador, Presidente da Câmara, Deputado"
@@ -524,12 +549,12 @@ const Settings: React.FC = () => {
                   </div>
 
                   {/* Card Papel Timbrado */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl space-y-6">
+                  <div className="bg-card dark:bg-card border border-border dark:border-border p-4 rounded-xl space-y-6">
                     <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-green-600" />
                       Papel Timbrado Digital
                     </h3>
-                    <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <label className="flex items-center gap-3 cursor-pointer p-3 bg-muted dark:bg-muted rounded-lg">
                       <input
                         type="checkbox"
                         checked={cabinet?.use_letterhead || false}
@@ -551,14 +576,14 @@ const Settings: React.FC = () => {
                         ) : (
                           <div className="h-16 w-32 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-slate-400 text-xs">Sem imagem</div>
                         )}
-                        <label className="cursor-pointer bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                        <label className="cursor-pointer bg-card dark:bg-card border border-border dark:border-border hover:bg-muted px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
                           <Upload className="w-4 h-4" /> Escolher Arquivo
                           <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCabinetUpload('header_url', e)} />
                         </label>
                       </div>
                     </div>
 
-                    <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="space-y-4 pt-2 border-t border-border dark:border-border">
                       <div className="flex justify-between items-center">
                         <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Imagem do Rodapé (Footer)</label>
                       </div>
@@ -568,7 +593,7 @@ const Settings: React.FC = () => {
                         ) : (
                           <div className="h-16 w-32 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-slate-400 text-xs">Sem imagem</div>
                         )}
-                        <label className="cursor-pointer bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                        <label className="cursor-pointer bg-card dark:bg-card border border-border dark:border-border hover:bg-muted px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
                           <Upload className="w-4 h-4" /> Escolher Arquivo
                           <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCabinetUpload('footer_url', e)} />
                         </label>
@@ -585,7 +610,7 @@ const Settings: React.FC = () => {
                 </div>
 
                 {/* Preview A4 */}
-                <div className="bg-gray-100 dark:bg-slate-900/50 p-6 rounded-xl flex items-center justify-center border border-slate-200 dark:border-slate-800">
+                <div className="bg-muted dark:bg-muted/50 p-6 rounded-xl flex items-center justify-center border border-border dark:border-border">
                   <div
                     className="bg-white text-black shadow-2xl relative flex flex-col justify-between overflow-hidden transition-all duration-300"
                     style={{
@@ -627,7 +652,7 @@ const Settings: React.FC = () => {
           {activeTab === 'ai' && (
             <div className="space-y-8 animate-fade-in">
               {/* AREA 1: CREDENCIAIS */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-xl space-y-6">
+              <div className="bg-card dark:bg-card border border-border dark:border-border p-6 rounded-xl space-y-6">
                 <div>
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
                     <SettingsIcon className="w-5 h-5 text-purple-600" />
@@ -641,7 +666,7 @@ const Settings: React.FC = () => {
                     <div className="relative">
                       <input
                         type="password"
-                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pl-10 outline-none focus:ring-2 focus:ring-purple-500 dark:text-white transition-all font-mono text-sm"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-4 py-2.5 pl-10 outline-none focus:ring-2 focus:ring-purple-500 dark:text-foreground transition-all font-mono text-sm"
                         value={cabinet?.gemini_api_key || ''}
                         onChange={(e) => setCabinet({ ...cabinet, gemini_api_key: e.target.value })}
                         placeholder="sk-..."
@@ -655,7 +680,7 @@ const Settings: React.FC = () => {
                     <div className="relative">
                       <input
                         type="password"
-                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pl-10 outline-none focus:ring-2 focus:ring-green-500 dark:text-white transition-all font-mono text-sm"
+                        className="w-full rounded-lg border-border dark:border-border bg-background dark:bg-background px-4 py-2.5 pl-10 outline-none focus:ring-2 focus:ring-green-500 dark:text-foreground transition-all font-mono text-sm"
                         value={cabinet?.openai_api_key || ''}
                         onChange={(e) => setCabinet({ ...cabinet, openai_api_key: e.target.value })}
                         placeholder="sk-..."
@@ -663,12 +688,12 @@ const Settings: React.FC = () => {
                       <SettingsIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     </div>
                   </div>
-                  <button onClick={handleSaveCabinet} className="w-full bg-slate-800 text-white py-2 rounded-lg font-bold">Salvar Credenciais</button>
+                  <button onClick={handleSaveCabinet} className="w-full bg-primary-600 hover:bg-primary-700 text-primary-foreground py-2 rounded-lg font-bold">Salvar Credenciais</button>
                 </div>
               </div>
 
               {/* AREA 1.5: CONEXÃO EXTERNA (GATEWAY) */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-xl space-y-6">
+              <div className="bg-card dark:bg-card border border-border dark:border-border p-6 rounded-xl space-y-6">
                 <div>
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
                     <Zap className="w-5 h-5 text-yellow-500" />
@@ -686,7 +711,7 @@ const Settings: React.FC = () => {
                       <input
                         readOnly
                         value={`https://${import.meta.env.VITE_SUPABASE_URL ? new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0] : 'PROJECT_REF'}.supabase.co/functions/v1/agent-gateway`}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-xs font-mono text-slate-600 dark:text-slate-300"
+                        className="w-full bg-card dark:bg-card border border-border dark:border-border rounded px-3 py-2 text-xs font-mono text-muted-foreground dark:text-muted-foreground"
                       />
                       <button className="p-2 text-slate-500 hover:text-slate-700" title="Copiar URL" onClick={() => {
                         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -708,7 +733,7 @@ const Settings: React.FC = () => {
                             readOnly
                             type={showAgentToken ? 'text' : 'password'}
                             value={cabinet.agent_access_token}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm font-mono text-slate-600 dark:text-slate-300 pr-10"
+                            className="w-full bg-card dark:bg-card border border-border dark:border-border rounded px-3 py-2 text-sm font-mono text-muted-foreground dark:text-muted-foreground pr-10"
                           />
                           <button
                             className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
@@ -931,7 +956,14 @@ const Settings: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${cabinet?.google_refresh_token ? 'bg-green-500 shadow-green-500/50 shadow-sm' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
                     <span className="font-medium text-slate-700 dark:text-slate-200">
-                      {cabinet?.google_refresh_token ? 'Conectado e Sincronizando' : 'Não conectado'}
+                      {cabinet?.google_refresh_token ? (
+                        <div className="flex flex-col">
+                          <span>Conectado</span>
+                          {cabinet?.google_email && (
+                            <span className="text-xs text-slate-500 font-normal">{cabinet.google_email}</span>
+                          )}
+                        </div>
+                      ) : 'Não conectado'}
                     </span>
                   </div>
 

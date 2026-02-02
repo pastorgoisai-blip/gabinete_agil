@@ -245,3 +245,16 @@ export interface ProductivityMetrics {
   demandsCreated: number;
   eventsCreated: number;
 }
+
+export interface Project {
+  id?: string;
+  type: string;
+  number: string;
+  year: string;
+  author: string;
+  summary: string;
+  status: 'Em Tramitação' | 'Finalizado' | 'Arquivado';
+  deadline?: string;
+  document_url?: string;
+  created_at?: string;
+}

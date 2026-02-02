@@ -37,10 +37,12 @@ const Agenda: React.FC = () => {
   const { syncEvent } = useGoogleCalendar();
 
   // UI States
+  // UI States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
 
   // Selection & Editing
@@ -173,31 +175,31 @@ const Agenda: React.FC = () => {
 
   const handleSave = async () => {
     if (!formData.title) return;
+    setIsSaving(true);
 
-    if (formData.notify_media) showNotification("📢 Disparando aviso no Grupo de Mídia (WhatsApp)...");
+    try {
+      if (formData.notify_media) showNotification("📢 Disparando aviso no Grupo de Mídia (WhatsApp)...");
 
-    let result;
-    if (isEditing && selectedEvent) {
-      result = await updateEvent(selectedEvent.id, formData);
-    } else {
-      result = await createEvent(formData);
-    }
-
-    if (result.success) {
-      showNotification(isEditing ? "✅ Evento atualizado!" : "✅ Evento criado com sucesso!");
-
-      // Google Sync
-      const eventIdToSync = isEditing && selectedEvent ? selectedEvent.id : (result as any).data?.id; // Cast needed as create returns object
-      if (eventIdToSync) {
-        showNotification("🔄 Sincronizando com Google...");
-        syncEvent(eventIdToSync.toString(), isEditing ? 'update' : 'create')
-          .then(() => showNotification("☁️ Sincronizado com Google Calendar"))
-          .catch(() => showNotification("⚠️ Falha ao sincronizar com Google"));
+      let result;
+      if (isEditing && selectedEvent) {
+        result = await updateEvent(selectedEvent.id, formData);
+      } else {
+        result = await createEvent(formData);
       }
 
-      setIsModalOpen(false);
-    } else {
-      alert("Erro ao salvar: " + result.error);
+      if (result.success) {
+        showNotification(isEditing ? "✅ Evento atualizado!" : "✅ Evento criado com sucesso!");
+
+        // Google Sync mechanism is handled inside useAgenda or via effect, 
+        // but here we might show a specific notification if needed.
+        // For now, removing duplicate logic.
+
+        setIsModalOpen(false);
+      } else {
+        alert("Erro ao salvar: " + result.error);
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -487,9 +489,10 @@ const Agenda: React.FC = () => {
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
+              disabled={isSaving}
+              className={`px-4 py-2 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm transition-colors flex items-center gap-2 ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {isEditing ? "Salvar Alterações" : <><Zap className="w-4 h-4" /> Criar e Disparar Avisos</>}
+              {isSaving ? "Salvando..." : (isEditing ? "Salvar Alterações" : <><Zap className="w-4 h-4" /> Criar e Disparar Avisos</>)}
             </button>
           </>
         }

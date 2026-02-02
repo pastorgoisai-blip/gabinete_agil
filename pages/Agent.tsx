@@ -155,14 +155,14 @@ const Agent: React.FC = () => {
     <div className="h-[calc(100vh-100px)] flex flex-col gap-4 animate-fade-in">
       {/* Header Stats - Compact */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-shrink-0">
-        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-card/60 backdrop-blur-sm p-4 rounded-xl border border-gray-200 dark:border-border shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-500 uppercase font-bold">Ativas</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">{conversations.length}</p>
           </div>
           <MessageSquare className="w-8 h-8 text-primary-200 dark:text-primary-900" />
         </div>
-        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-card/60 backdrop-blur-sm p-4 rounded-xl border border-gray-200 dark:border-border shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-500 uppercase font-bold">Status IA</p>
             <div className="flex items-center gap-2 mt-1">
@@ -193,12 +193,12 @@ const Agent: React.FC = () => {
       </div>
 
       {/* Main Console Area */}
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-xl overflow-hidden flex relative">
+      <div className="flex-1 bg-white dark:bg-background/80 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-border shadow-xl overflow-hidden flex relative">
 
         {/* Sidebar (Conversations List) */}
         <div className={`w-full md:w-[350px] lg:w-[400px] border-r border-gray-200 dark:border-slate-700 flex flex-col ${isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
           {/* Sidebar Header */}
-          <div className="p-4 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+          <div className="p-4 bg-gray-50 dark:bg-card border-b border-gray-200 dark:border-border flex justify-between items-center">
             <div className="flex items-center gap-3">
               <img src={profile?.avatar_url || `https://ui-avatars.com/api/?name=${profile?.name}&background=random`} className="w-10 h-10 rounded-full" alt="Profile" />
               <span className="font-bold text-slate-700 dark:text-white truncate max-w-[150px]">{profile?.name}</span>
@@ -256,7 +256,7 @@ const Agent: React.FC = () => {
           <div className={`flex-1 flex flex-col bg-[#efeae2] dark:bg-[#0b141a] ${isMobileChatOpen ? 'flex' : 'hidden md:flex'} absolute inset-0 md:static z-20`}>
 
             {/* Chat Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm z-10">
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-card border-b border-gray-200 dark:border-border shadow-sm z-10">
               <div className="flex items-center gap-3">
                 <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden text-slate-600 dark:text-white">
                   <ArrowLeft className="w-6 h-6" />
@@ -324,7 +324,7 @@ const Agent: React.FC = () => {
           </div>
         ) : (
           /* Empty State */
-          <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-gray-50 dark:bg-[#222e35] border-b-8 border-green-500">
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-gray-50 dark:bg-background border-b-8 border-green-500">
             <div className="max-w-md text-center p-8">
               <div className="w-64 h-64 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-8 flex items-center justify-center animate-pulse">
                 <Phone className="w-32 h-32 text-slate-400 dark:text-slate-500 opacity-50" />

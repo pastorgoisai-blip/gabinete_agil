@@ -213,7 +213,7 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                         <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-700">
                             <ArrowLeft className="w-5 h-5 text-gray-500" />
                         </button>
-                        <h2 className="text-xl font-bold dark:text-white">Escolha um Modelo</h2>
+                        <h2 className="text-xl font-bold dark:text-foreground">Escolha um Modelo</h2>
                     </div>
 
                     <div className="relative">
@@ -235,13 +235,13 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                         <div
                             key={tmpl.id}
                             onClick={() => handleTemplateSelect(tmpl)}
-                            className="border border-gray-200 dark:border-slate-700 rounded-xl p-6 cursor-pointer hover:border-primary-500 hover:shadow-lg hover:shadow-primary-500/10 transition-all bg-white dark:bg-slate-800 group"
+                            className="border border-border dark:border-border rounded-xl p-6 cursor-pointer hover:border-primary-500 hover:shadow-lg hover:shadow-primary-500/10 transition-all bg-card dark:bg-card group"
                         >
                             <div className="bg-primary-100 dark:bg-primary-900/30 text-primary-600 p-3 rounded-lg w-fit mb-4 group-hover:scale-110 transition-transform">
                                 <LayoutTemplate className="w-6 h-6" />
                             </div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{tmpl.title}</h3>
-                            <p className="text-sm text-slate-500">{tmpl.type}</p>
+                            <h3 className="text-lg font-bold text-foreground dark:text-foreground mb-2">{tmpl.title}</h3>
+                            <p className="text-sm text-muted-foreground">{tmpl.type}</p>
                             {tmpl.storage_path && !tmpl.content_html && (
                                 <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-2 inline-block">
                                     Legado (DOCX)
@@ -257,14 +257,14 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
     return (
         <div className="space-y-6 animate-fade-in flex flex-col h-screen">
             {/* Top Bar - Fixed */}
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 pb-4 bg-white dark:bg-slate-900 sticky top-0 z-40 px-4 pt-4">
+            <div className="flex items-center justify-between border-b border-border dark:border-border pb-4 bg-background dark:bg-background sticky top-0 z-40 px-4 pt-4">
                 <div className="flex items-center gap-3">
                     <button onClick={() => setStep('template')} className="p-2 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-700">
                         <ArrowLeft className="w-5 h-5 text-gray-500" />
                     </button>
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">Novo {meta.type}</h2>
-                        <p className="text-xs text-slate-500">Preencha os dados e edite o conteúdo</p>
+                        <h2 className="text-lg font-bold text-foreground dark:text-foreground">Novo {meta.type}</h2>
+                        <p className="text-xs text-muted-foreground">Preencha os dados e edite o conteúdo</p>
                     </div>
                 </div>
                 <button
@@ -277,13 +277,13 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
 
             <div className="grid grid-cols-12 gap-6 px-4 pb-10 flex-1 overflow-hidden">
                 {/* Metadata Form - Sidebar */}
-                <div className="col-span-12 lg:col-span-3 space-y-4 bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-200 dark:border-slate-700 h-fit overflow-y-auto">
+                <div className="col-span-12 lg:col-span-3 space-y-4 bg-muted/30 dark:bg-muted/30 p-4 rounded-xl border border-border dark:border-border h-fit overflow-y-auto">
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Número</label>
                         <input
                             value={meta.number}
                             onChange={e => setMeta({ ...meta, number: e.target.value })}
-                            className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded p-2 text-sm"
+                            className="w-full bg-background dark:bg-background border border-border dark:border-border rounded p-2 text-sm text-foreground dark:text-foreground"
                             placeholder="001"
                         />
                     </div>
@@ -316,7 +316,7 @@ const LegislativeEditor: React.FC<LegislativeEditorProps> = ({ onCancel, onSaveS
                 </div>
 
                 {/* Editor Area */}
-                <div className="col-span-12 lg:col-span-9 overflow-y-auto h-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-900 relative">
+                <div className="col-span-12 lg:col-span-9 overflow-y-auto h-full rounded-xl border border-border dark:border-border bg-card dark:bg-card relative">
                     <RichTextEditor
                         content={content}
                         onChange={setContent}

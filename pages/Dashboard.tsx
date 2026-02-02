@@ -158,7 +158,7 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row gap-6">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h2>
+            <h2 className="text-2xl font-bold text-foreground">Visão Geral</h2>
             <span className="px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Sistema Online
             </span>
@@ -170,7 +170,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* AI Alerts Section - Making the system "Alive" */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+      <div className="bg-[#061a19] rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 p-32 bg-primary-600/20 blur-3xl rounded-full -mr-16 -mt-16 pointer-events-none"></div>
         <div className="flex items-center gap-3 mb-4 relative z-10">
           <div className="p-2 bg-primary-500/20 rounded-lg border border-primary-500/30">
@@ -239,9 +239,9 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Evolution Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
+        <div className="lg:col-span-2 bg-card/60 dark:bg-card/60 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-border dark:border-border">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Crescimento da Base</h3>
+            <h3 className="font-bold text-lg text-foreground">Crescimento da Base</h3>
             <span className="text-xs text-slate-400 px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded-lg">Demo (Dados Estáticos)</span>
           </div>
           <div className="h-64">
@@ -251,7 +251,7 @@ const Dashboard: React.FC = () => {
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
                   itemStyle={{ color: '#fff' }}
                 />
                 <Line
@@ -268,7 +268,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Method Chart */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col">
+        <div className="bg-card/60 dark:bg-card/60 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-border dark:border-border flex flex-col">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-4">Origem dos Dados</h3>
           <div className="flex-1 flex flex-col items-center justify-center relative">
             <div className="h-48 w-48 relative">
@@ -310,7 +310,7 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Neighborhoods List/Map */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+        <div className="bg-card/60 dark:bg-card/60 backdrop-blur-sm rounded-2xl shadow-sm border border-border dark:border-border p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
               <MapPin className="text-primary-600 w-5 h-5" /> Mapa de Calor (Top 5 Bairros)
@@ -337,7 +337,7 @@ const Dashboard: React.FC = () => {
               {topNeighborhoods.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-4">Nenhum dado de localização encontrado.</p>
               ) : topNeighborhoods.map((bairro, idx) => (
-                <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-slate-700 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 px-2 rounded-lg transition-colors cursor-pointer group">
+                <div key={idx} className="flex justify-between items-center py-2 border-b border-border dark:border-border last:border-0 hover:bg-muted dark:hover:bg-muted/50 px-2 rounded-lg transition-colors cursor-pointer group">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-slate-400 w-4">{idx + 1}</span>
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors">{bairro.name}</span>
@@ -388,7 +388,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Birthdays */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+        <div className="bg-card/60 dark:bg-card/60 backdrop-blur-sm rounded-2xl shadow-sm border border-border dark:border-border p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
               <Cake className="text-pink-500 w-5 h-5" /> Aniversariantes do Mês
@@ -442,7 +442,7 @@ const Dashboard: React.FC = () => {
         {selectedBirthday && (
           <div className="space-y-6">
             <div className="flex flex-col items-center text-center p-6 bg-pink-50 dark:bg-pink-900/10 rounded-xl border border-pink-100 dark:border-pink-900/30">
-              <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm mb-4">
+              <div className="w-20 h-20 bg-card dark:bg-card rounded-full flex items-center justify-center shadow-sm mb-4">
                 <Cake className="w-10 h-10 text-pink-500" />
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedBirthday.name}</h3>
