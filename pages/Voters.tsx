@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useVoters } from '../hooks/useVoters';
+import { useVotersCore } from '../src/modules/crm/presentation/hooks/useVotersCore';
+import type { Voter } from '../src/modules/crm/domain/entities/Voter';
 import {
   Search, Filter, Plus, MapPin, Edit,
   Trash2, FileSpreadsheet, UserCheck, MessageCircle,
@@ -10,11 +11,16 @@ import Modal from '../components/Modal';
 import ImportVotersModal from '../components/ImportVotersModal';
 import VoterForm from '../components/VoterForm';
 import VoterProfileModal from '../components/VoterProfileModal';
-import { Voter } from '../types';
 
 const Voters: React.FC = () => {
   const { profile } = useAuth();
-  const { voters, loading, refresh, deleteVoter } = useVoters();
+  const { voters, isLoading, fetchVoters, deleteVoter } = useVotersCore();
+
+  useEffect(() => {
+    if (profile?.cabinet_id) {
+      fetchVoters(profile.cabinet_id);
+    }
+  }, [profile?.cabinet_id, fetchVoters]);
 
   // Filters State
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,11 +46,11 @@ const Voters: React.FC = () => {
 
       let matchesBirthday = true;
       if (showBirthdaysOnly) {
-        if (!voter.birth_date) matchesBirthday = false;
+        if (!voter.birthDate) matchesBirthday = false;
         else {
           const today = new Date();
           // Create date objects avoiding timezone issues for month comparison
-          const birthParts = voter.birth_date.split('-'); // Assuming YYYY-MM-DD
+          const birthParts = voter.birthDate.split('-'); // Assuming YYYY-MM-DD
           const birthMonth = parseInt(birthParts[1]) - 1; // 0-indexed
           matchesBirthday = birthMonth === today.getMonth();
         }
@@ -177,7 +183,7 @@ const Voters: React.FC = () => {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="text-center py-10">
           <div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="mt-4 text-gray-500">Carregando eleitores...</p>
@@ -199,15 +205,15 @@ const Voters: React.FC = () => {
                     onClick={() => handleView(voter)}
                     className="w-12 h-12 rounded-full bg-muted dark:bg-muted flex items-center justify-center text-muted-foreground dark:text-muted-foreground font-bold text-lg border border-border dark:border-border cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all"
                   >
-                    {voter.avatar_url ? (
-                      <img src={voter.avatar_url} alt={voter.name} className="w-full h-full rounded-full object-cover" />
+                    {voter.avatarUrl ? (
+                      <img src={voter.avatarUrl} alt={voter.name} className="w-full h-full rounded-full object-cover" />
                     ) : getInitial(voter.name)}
                   </div>
                   <div className="flex-1 min-w-0 pointer-events-none sm:pointer-events-auto" onClick={() => handleView(voter)}>
                     <h3 className="font-bold text-foreground dark:text-foreground text-lg truncate cursor-pointer hover:text-primary-600 transition-colors">{voter.name}</h3>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-1">
                       {voter.address && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {voter.address}</span>}
-                      {voter.indicated_by && <span className="text-xs bg-gray-100 dark:bg-slate-700 px-2 rounded-full">Ind: {voter.indicated_by}</span>}
+                      {voter.indicatedBy && <span className="text-xs bg-gray-100 dark:bg-slate-700 px-2 rounded-full">Ind: {voter.indicatedBy}</span>}
                     </div>
                     <div className="flex gap-2">
                       <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${voter.category === 'Liderança' ? 'bg-purple-50 text-purple-700' :
@@ -258,13 +264,13 @@ const Voters: React.FC = () => {
       <ImportVotersModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
-        onSuccess={() => { setIsImportOpen(false); refresh(); }}
+        onSuccess={() => { setIsImportOpen(false); if (profile?.cabinet_id) fetchVoters(profile.cabinet_id); }}
       />
 
       <Modal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} title={selectedVoter ? "Editar Eleitor" : "Novo Eleitor"} footer={null}>
         <VoterForm
           voter={selectedVoter}
-          onSuccess={() => { setIsFormOpen(false); refresh(); }}
+          onSuccess={() => { setIsFormOpen(false); if (profile?.cabinet_id) fetchVoters(profile.cabinet_id); }}
           onCancel={() => setIsFormOpen(false)}
         />
       </Modal>

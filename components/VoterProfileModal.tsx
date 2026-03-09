@@ -2,7 +2,7 @@ import React from 'react';
 import {
     X, MapPin, Phone, Mail, Calendar, Tag, MessageCircle, Edit, Trash2, User
 } from 'lucide-react';
-import { Voter } from '../types';
+import type { Voter } from '../src/modules/crm/domain/entities/Voter';
 
 interface VoterProfileModalProps {
     isOpen: boolean;
@@ -38,8 +38,8 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                     <div className="relative -mt-16 mb-6 flex justify-between items-end">
                         <div className="flex items-end gap-6">
                             <div className="w-32 h-32 rounded-full border-4 border-card dark:border-card bg-card dark:bg-muted flex items-center justify-center text-4xl font-bold text-muted-foreground shadow-lg">
-                                {voter.avatar_url ? (
-                                    <img src={voter.avatar_url} alt={voter.name} className="w-full h-full rounded-full object-cover" />
+                                {voter.avatarUrl ? (
+                                    <img src={voter.avatarUrl} alt={voter.name} className="w-full h-full rounded-full object-cover" />
                                 ) : (
                                     getInitial(voter.name)
                                 )}
@@ -104,7 +104,7 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                                         <div>
                                             <p className="text-sm text-slate-500 dark:text-slate-400">Nascimento</p>
                                             <p className="text-slate-900 dark:text-white font-medium">
-                                                {voter.birth_date ? new Date(voter.birth_date).toLocaleDateString('pt-BR') : '-'}
+                                                {voter.birthDate ? new Date(voter.birthDate).toLocaleDateString('pt-BR') : '-'}
                                             </p>
                                         </div>
                                     </div>
@@ -158,7 +158,7 @@ const VoterProfileModal: React.FC<VoterProfileModalProps> = ({
                                 <div className="space-y-3">
                                     <div>
                                         <p className="text-sm text-slate-500 dark:text-slate-400">Indicado por</p>
-                                        <p className="text-slate-900 dark:text-white font-medium">{voter.indicated_by || '-'}</p>
+                                        <p className="text-slate-900 dark:text-white font-medium">{voter.indicatedBy || '-'}</p>
                                     </div>
                                     <div>
                                         <p className="text-sm text-slate-500 dark:text-slate-400">Tags</p>

@@ -1,18 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useVotersCore } from '../src/modules/crm/presentation/hooks/useVotersCore';
+import type { Voter } from '../src/modules/crm/domain/entities/Voter';
 import { User, Phone, MapPin, Mail, Calendar, Hash, Tag, UserCheck } from 'lucide-react';
 
 interface VoterFormProps {
-    voter?: any;
+    voter?: Voter | null;
     onSuccess: () => void;
     onCancel: () => void;
 }
 
 export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps) {
     const { profile } = useAuth();
+    const { createVoter, updateVoter } = useVotersCore();
     const [loading, setLoading] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [cpfError, setCpfError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         name: '',
         cpf: '',
@@ -21,9 +25,9 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
         address: '',
         neighborhood: '',
         city: 'Anápolis', // Default para facilitar
-        birth_date: '',
+        birthDate: '',
         category: 'Indeciso',
-        indicated_by: '',
+        indicatedBy: '',
         tags: '' // Gerenciar como string comma-separated na UI por simplicidade inicial
     });
 
@@ -37,9 +41,9 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                 address: voter.address || '',
                 neighborhood: voter.neighborhood || '',
                 city: voter.city || '',
-                birth_date: voter.birth_date || '',
+                birthDate: voter.birthDate || '',
                 category: voter.category || 'Indeciso',
-                indicated_by: voter.indicated_by || '',
+                indicatedBy: voter.indicatedBy || '',
                 tags: voter.tags ? voter.tags.join(', ') : ''
             });
         }
@@ -48,56 +52,67 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'cpf') setCpfError(null);
+        setFormError(null);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!profile?.cabinet_id) return;
         setLoading(true);
+        setFormError(null);
+        setCpfError(null);
 
         try {
-            const payload = {
-                cabinet_id: profile.cabinet_id,
-                name: formData.name,
-                cpf: formData.cpf.replace(/\D/g, ''),
-                phone: formData.phone,
-                email: formData.email,
-                address: formData.address,
-                neighborhood: formData.neighborhood,
-                city: formData.city,
-                birth_date: formData.birth_date || null,
-                category: formData.category,
-                indicated_by: formData.indicated_by,
-                tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
-                updated_at: new Date().toISOString()
-            };
+            const parsedTags = formData.tags.split(',').map(t => t.trim()).filter(t => t);
 
-            let error;
             if (voter?.id) {
-                // Update
-                const { error: updateError } = await supabase
-                    .from('voters')
-                    .update(payload)
-                    .eq('id', voter.id);
-                error = updateError;
+                // Update via useVotersCore
+                const result = await updateVoter(voter.id, {
+                    name: formData.name,
+                    cpf: formData.cpf.replace(/\D/g, '') || undefined,
+                    phone: formData.phone,
+                    email: formData.email || undefined,
+                    address: formData.address,
+                    neighborhood: formData.neighborhood || undefined,
+                    city: formData.city || undefined,
+                    birthDate: formData.birthDate || undefined,
+                    category: formData.category as Voter['category'],
+                    indicatedBy: formData.indicatedBy || undefined,
+                    tags: parsedTags.length > 0 ? parsedTags : undefined,
+                });
+                if (!result.success) {
+                    throw new Error(result.error || 'Erro ao atualizar eleitor.');
+                }
             } else {
-                // Insert
-                const { error: insertError } = await supabase
-                    .from('voters')
-                    .insert({
-                        ...payload,
-                        status: 'active',
-                        source: 'Manual'
-                    });
-                error = insertError;
+                // Create via useVotersCore (CPF validated by domain Value Object)
+                const result = await createVoter(profile.cabinet_id, {
+                    name: formData.name,
+                    cpf: formData.cpf.replace(/\D/g, '') || undefined,
+                    phone: formData.phone,
+                    email: formData.email || undefined,
+                    address: formData.address,
+                    neighborhood: formData.neighborhood || undefined,
+                    city: formData.city || undefined,
+                    birthDate: formData.birthDate || undefined,
+                    category: formData.category as Voter['category'],
+                    indicatedBy: formData.indicatedBy || undefined,
+                    tags: parsedTags.length > 0 ? parsedTags : undefined,
+                });
+                if (!result.success) {
+                    throw new Error(result.error || 'Erro ao criar eleitor.');
+                }
             }
 
-            if (error) throw error;
             onSuccess();
-        } catch (err: any) {
-            console.error('Erro ao salvar eleitor:', err);
-            // TODO: Mostrar erro na UI
-            alert('Erro ao salvar: ' + err.message);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Erro desconhecido.';
+            // Surface CPF validation errors specifically
+            if (message.toLowerCase().includes('cpf')) {
+                setCpfError(message);
+            } else {
+                setFormError(message);
+            }
         } finally {
             setLoading(false);
         }
@@ -105,6 +120,12 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
+            {formError && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                    {formError}
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Dados Pessoais */}
                 <div className="col-span-2">
@@ -130,10 +151,17 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                             name="cpf"
                             value={formData.cpf}
                             onChange={handleChange}
-                            className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
+                            className={`pl-10 w-full rounded-lg border p-2 focus:ring-primary-500 focus:border-primary-500 ${
+                                cpfError
+                                    ? 'border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-900/10'
+                                    : 'border-border dark:border-border bg-background dark:bg-background'
+                            } text-foreground dark:text-foreground`}
                             placeholder="000.000.000-00"
                         />
                     </div>
+                    {cpfError && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{cpfError}</p>
+                    )}
                 </div>
 
                 <div>
@@ -142,8 +170,8 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                         <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
                             type="date"
-                            name="birth_date"
-                            value={formData.birth_date}
+                            name="birthDate"
+                            value={formData.birthDate}
                             onChange={handleChange}
                             className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -228,8 +256,8 @@ export default function VoterForm({ voter, onSuccess, onCancel }: VoterFormProps
                     <div className="relative">
                         <UserCheck className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <input
-                            name="indicated_by"
-                            value={formData.indicated_by}
+                            name="indicatedBy"
+                            value={formData.indicatedBy}
                             onChange={handleChange}
                             className="pl-10 w-full rounded-lg border-border dark:border-border bg-background dark:bg-background text-foreground dark:text-foreground border p-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Quem indicou?"
