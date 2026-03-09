@@ -29,6 +29,7 @@ import AdminRoute from './components/AdminRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
 
 import ManagerRoute from './components/ManagerRoute';
+import RequirePermission from './components/RequirePermission';
 import AcceptInvite from './pages/AcceptInvite';
 import ResetPassword from './pages/ResetPassword';
 
@@ -86,17 +87,38 @@ const App: React.FC = () => {
             {/* Rotas Protegidas e com Layout */}
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
+                {/* Open to all authenticated users */}
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/voters" element={<Voters />} />
-                <Route path="/demands" element={<Demands />} />
-                <Route path="/legislative" element={<Legislative />} />
-                <Route path="/agenda" element={<Agenda />} />
-                <Route path="/honored" element={<Honored />} />
-                <Route path="/agent" element={<Agent />} />
-                <Route path="/projects" element={<Projects />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/reports" element={<Reports />} />
                 <Route path="/help" element={<HelpSupport />} />
+
+                {/* Permission-gated module routes */}
+                <Route element={<RequirePermission moduleId="voters" />}>
+                  <Route path="/voters" element={<Voters />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="demands" />}>
+                  <Route path="/demands" element={<Demands />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="legislative" />}>
+                  <Route path="/legislative" element={<Legislative />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="agenda" />}>
+                  <Route path="/agenda" element={<Agenda />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="honored" />}>
+                  <Route path="/honored" element={<Honored />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="agent" />}>
+                  <Route path="/agent" element={<Agent />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="projects" />}>
+                  <Route path="/projects" element={<Projects />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="notifications" />}>
+                  <Route path="/notifications" element={<Notifications />} />
+                </Route>
+                <Route element={<RequirePermission moduleId="reports" />}>
+                  <Route path="/reports" element={<Reports />} />
+                </Route>
 
                 {/* Manager Routes (Admin/Super Admin only) */}
                 <Route element={<ManagerRoute />}>

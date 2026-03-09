@@ -16,14 +16,16 @@ export const useProductivity = () => {
             const { data: profile } = await supabase.from('profiles').select('cabinet_id').eq('id', user.id).single();
 
             if (profile?.cabinet_id) {
-                await supabase.from('system_access_logs').insert({
-                    user_id: user.id,
-                    cabinet_id: profile.cabinet_id,
-                    accessed_at: new Date().toISOString(),
-                    metadata: {
-                        userAgent: navigator.userAgent
-                    }
-                });
+                const now = new Date().toISOString();
+                await Promise.all([
+                    supabase.from('system_access_logs').insert({
+                        user_id: user.id,
+                        cabinet_id: profile.cabinet_id,
+                        accessed_at: now,
+                        metadata: { userAgent: navigator.userAgent }
+                    }),
+                    supabase.from('profiles').update({ last_access: now }).eq('id', user.id)
+                ]);
             }
         } catch (err) {
             console.error('Failed to log access', err);

@@ -22,16 +22,10 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
     showTitle = true
 }) => {
     const { user } = useAuth();
-    const { fetchMetrics, metrics, loading, logAccess } = useProductivity();
+    const { fetchMetrics, metrics, loading } = useProductivity();
     const [period, setPeriod] = useState<'day' | 'week' | 'month'>('week');
 
-    useEffect(() => {
-        // Log access immediately on mount ONLY if it's the personal dashboard on the main page
-        // If it's embedded in UserList (cabinet scope), we might not want to log access just for viewing the dashboard
-        if (scope === 'personal') {
-            logAccess();
-        }
-    }, [logAccess, scope]);
+    // Access logging is now handled by AuthContext on SIGNED_IN event.
 
     useEffect(() => {
         if (scope === 'personal' && user) {

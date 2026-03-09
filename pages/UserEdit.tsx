@@ -92,9 +92,6 @@ const UserEdit: React.FC = () => {
     avatar_url: ''
   });
 
-  // Password State
-  const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
-
   // Permissions State
   const modules = [
     { id: 'dashboard', label: 'Dashboard' },
@@ -222,31 +219,6 @@ const UserEdit: React.FC = () => {
         .eq('id', targetProfile.id);
 
       if (error) throw error;
-
-      // 2. Handle Password Change (if provided)
-      if (passwordData.newPassword) {
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
-          alert('As senhas não conferem.');
-          setSaving(false);
-          return;
-        }
-
-        // Admin updating another user's password requires service role usually, or specific admin API.
-        // Supabase Client SDK `updateUser` works for LOGGED IN user.
-        // To update ANOTHER user, we need `supabase.auth.admin.updateUserById` which is server-side only (service_role).
-        // Or if we are editing SELF:
-        if (isEditingSelf) {
-          const { error: pwdError } = await supabase.auth.updateUser({ password: passwordData.newPassword });
-          if (pwdError) throw pwdError;
-          alert('Senha atualizada com sucesso!');
-        } else {
-          alert('Troca de senha de outros usuários requer função administrativa no servidor (backend). Envie um email de reset.');
-          // Alternatively trigger reset password email
-          const { error: resetError } = await supabase.auth.resetPasswordForEmail(targetProfile.email || '');
-          if (resetError) console.error("Reset Email Error", resetError);
-          else alert(`Email de redefinição enviado para ${targetProfile.email}`);
-        }
-      }
 
       alert('Perfil atualizado com sucesso!');
       // Reload?
@@ -537,50 +509,6 @@ const UserEdit: React.FC = () => {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Security Section (Change Password) - Only for Self or if implemented globally */}
-            <div className="bg-card dark:bg-card border border-border dark:border-border rounded-xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600 dark:text-primary-400">
-                    <Lock className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Segurança</h3>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400" htmlFor="newPassword">Nova Senha</label>
-                  <div className="relative">
-                    <input
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:border-primary-600 focus:ring-1 focus:ring-primary-600 outline-none transition-all placeholder-slate-400"
-                      id="newPassword"
-                      placeholder="••••••••"
-                      type="password"
-                      value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData(p => ({ ...p, newPassword: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400" htmlFor="confirmPassword">Confirmar Nova Senha</label>
-                  <div className="relative">
-                    <input
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:border-primary-600 focus:ring-1 focus:ring-primary-600 outline-none transition-all placeholder-slate-400"
-                      id="confirmPassword"
-                      placeholder="••••••••"
-                      type="password"
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <Info className="w-4 h-4 text-primary-600" />
-                <p>A senha deve conter pelo menos 8 caracteres.</p>
               </div>
             </div>
 

@@ -94,6 +94,9 @@ class Cabinet(Base, TimestampMixin):
     )
     google_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    # Government Credentials (Vault)
+    gov_credentials: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    
     # Relationships
     demands: Mapped[list["Demand"]] = relationship(
         "Demand",

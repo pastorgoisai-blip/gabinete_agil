@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 
@@ -34,6 +34,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [recoveryMode, setRecoveryMode] = useState(false);
+
+    // Debounced access log - prevents duplicate entries on tab refresh/multiple SIGNED_IN events
+    const lastLogTimestampRef = useRef<number>(0);
+    const LOG_DEBOUNCE_MS = 30_000; // 30 seconds minimum between log entries
+
+    const logAccessOnSignIn = async (userId: string) => {
+        const now = Date.now();
+        if (now - lastLogTimestampRef.current < LOG_DEBOUNCE_MS) return;
+        lastLogTimestampRef.current = now;
+
+        try {
+            const { data: prof } = await supabase
+                .from('profiles')
+                .select('cabinet_id')
+                .eq('id', userId)
+                .single();
+
+            if (prof?.cabinet_id) {
+                const timestamp = new Date().toISOString();
+                await Promise.all([
+                    supabase.from('system_access_logs').insert({
+                        user_id: userId,
+                        cabinet_id: prof.cabinet_id,
+                        accessed_at: timestamp,
+                        metadata: { userAgent: navigator.userAgent }
+                    }),
+                    supabase.from('profiles').update({ last_access: timestamp }).eq('id', userId)
+                ]);
+            }
+        } catch (err) {
+            console.error('Failed to log access on sign-in:', err);
+        }
+    };
 
     useEffect(() => {
         const initializeAuth = async () => {
@@ -150,6 +183,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (session?.user) {
                     fetchProfile(session.user.id);
+
+                    if (event === 'SIGNED_IN') {
+                        logAccessOnSignIn(session.user.id);
+                    }
                 } else {
                     setProfile(null);
                     setLoading(false);
